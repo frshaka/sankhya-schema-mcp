@@ -1,0 +1,18 @@
+# Ambiente Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Credenciais — nunca subir
+.env
+
+# Arquivos locais do Claude Code
+.claude/
+
+# Oracle Instant Client — binários grandes, instalar localmente
+instantclient/
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
