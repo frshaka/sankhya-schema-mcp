@@ -18,9 +18,17 @@ conectando ao banco Oracle local via Oracle Instant Client (modo thick).
 | `table_sample` | Amostra de dados reais da tabela |
 | `list_modules` | Visão geral dos módulos por prefixo de tabela |
 
-## Instalação
+## Instalação rápida
 
-Veja [INSTALACAO.md](INSTALACAO.md) para o guia completo passo a passo.
+```powershell
+git clone https://github.com/frshaka/sankhya-schema-mcp.git
+cd sankhya-schema-mcp
+pwsh -File setup.ps1
+```
+
+O script baixa o Oracle Instant Client, cria o ambiente virtual Python, instala as dependências e registra o MCP no Claude Code automaticamente.
+
+Veja [INSTALACAO.md](INSTALACAO.md) para o guia completo com configuração de credenciais e solução de problemas.
 
 ## Exemplos de uso no chat
 

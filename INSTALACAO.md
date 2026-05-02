@@ -27,17 +27,17 @@ cd sankhya-schema-mcp
 
 ## Passo 2 — Rodar o setup automático
 
-O script `setup.ps1` baixa o Oracle Instant Client (~135 MB), cria o ambiente
-virtual Python e instala todas as dependências de uma vez:
+O script `setup.ps1` faz tudo de uma vez:
 
 ```powershell
 pwsh -File setup.ps1
 ```
 
 O que o script faz:
-1. Baixa e extrai `instantclient/` do GitHub Releases (pulado se já existir)
-2. Cria o ambiente virtual `.venv/` (pulado se já existir)
+1. Baixa e extrai `instantclient/` do GitHub Releases (~135 MB) — pulado se já existir
+2. Cria o ambiente virtual `.venv/` — pulado se já existir
 3. Instala as dependências: `mcp`, `oracledb`, `python-dotenv`
+4. Registra o MCP no Claude Code (`~/.claude/.claude.json`)
 
 > **Pré-requisitos:** Python 3.10+ e PowerShell 7+ instalados e no PATH.
 
@@ -62,47 +62,26 @@ $env:SANKHYA_DB_PASSWORD = "developer"   # senha
 
 ## Passo 4 — Registrar o MCP no Claude Code
 
-Descubra o caminho completo da pasta onde você colocou o projeto:
+O `setup.ps1` já faz isso automaticamente (etapa 4/4).
 
-```powershell
-# Cole este comando no PowerShell para obter o caminho exato
-Resolve-Path ".\start.ps1"
-```
-
-Anote o resultado (ex.: `C:\projetos\sankhya-mcp\start.ps1`).
-
-### Opção A — Claude Code CLI (recomendado)
-
-Execute no terminal:
-
-```bash
-claude mcp add sankhya-schema -- pwsh -File "C:\SEU_CAMINHO\sankhya-mcp\start.ps1"
-```
-
-Substitua `C:\SEU_CAMINHO\sankhya-mcp\start.ps1` pelo caminho anotado acima.
-
-### Opção B — Editar o arquivo de configuração manualmente
-
-Abra o arquivo de configuração do Claude Code:
+Caso precise registrar manualmente, edite o arquivo:
 
 ```
-C:\Users\<seu-usuario>\.claude\settings.json
+C:\Users\<seu-usuario>\.claude\.claude.json
 ```
 
-Localize a seção `"mcpServers"` (crie se não existir) e adicione:
+Adicione (ou complemente) a chave `mcpServers` na raiz do JSON:
 
 ```json
-{
-  "mcpServers": {
-    "sankhya-schema": {
-      "command": "pwsh",
-      "args": ["-File", "C:\\SEU_CAMINHO\\sankhya-mcp\\start.ps1"]
-    }
+"mcpServers": {
+  "sankhya-schema": {
+    "type": "stdio",
+    "command": "pwsh",
+    "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "C:\\SEU_CAMINHO\\sankhya-mcp\\start.ps1"],
+    "env": {}
   }
 }
 ```
-
-> Use barras duplas `\\` no JSON. Substitua `SEU_CAMINHO` pelo caminho real.
 
 ---
 
