@@ -16,43 +16,30 @@ durante uma conversa com o Claude.
 
 ---
 
-## Passo 1 — Copiar o projeto
+## Passo 1 — Clonar o projeto
 
-Copie a pasta do projeto para qualquer diretório da sua máquina. Exemplo:
-
+```powershell
+git clone https://github.com/frshaka/sankhya-schema-mcp.git
+cd sankhya-schema-mcp
 ```
-C:\projetos\sankhya-mcp\
-```
-
-A pasta deve ter esta estrutura:
-
-```
-sankhya-mcp/
-├── instantclient/       ← DLLs do Oracle Instant Client 11.2
-├── src/
-│   └── server.py
-├── start.ps1
-├── requirements.txt
-└── INSTALACAO.md
-```
-
-> O caminho pode ser diferente em cada máquina — o projeto usa caminhos relativos
-> e funciona em qualquer local.
 
 ---
 
-## Passo 2 — Criar o ambiente virtual Python
+## Passo 2 — Rodar o setup automático
 
-Abra o PowerShell na pasta do projeto e execute:
+O script `setup.ps1` baixa o Oracle Instant Client (~135 MB), cria o ambiente
+virtual Python e instala todas as dependências de uma vez:
 
 ```powershell
-cd C:\projetos\sankhya-mcp      # ajuste para o seu caminho
-
-python -m venv .venv
-.\.venv\Scripts\pip install -r requirements.txt
+pwsh -File setup.ps1
 ```
 
-Aguarde o download das dependências (`mcp`, `oracledb`, `python-dotenv`).
+O que o script faz:
+1. Baixa e extrai `instantclient/` do GitHub Releases (pulado se já existir)
+2. Cria o ambiente virtual `.venv/` (pulado se já existir)
+3. Instala as dependências: `mcp`, `oracledb`, `python-dotenv`
+
+> **Pré-requisitos:** Python 3.10+ e PowerShell 7+ instalados e no PATH.
 
 ---
 
@@ -172,8 +159,11 @@ Instale o PowerShell 7+: [aka.ms/powershell](https://aka.ms/powershell)
   ```
 
 ### "DPI-1047: Cannot locate a 64-bit Oracle Client library"
-A pasta `instantclient\` está ausente ou incompleta.
-Certifique-se de que a pasta existe dentro do projeto e contém o arquivo `oci.dll`.
+A pasta `instantclient\` está ausente ou incompleta. Rode novamente o setup:
+```powershell
+Remove-Item instantclient -Recurse -Force   # remove pasta corrompida
+pwsh -File setup.ps1
+```
 
 ---
 
