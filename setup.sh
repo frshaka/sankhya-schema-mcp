@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # URL base do repositório e do instantclient Linux no GitHub Releases
-REPO_URL="https://github.com/frshaka/sankhya-schema-mcp.git"
-INSTANTCLIENT_URL="https://github.com/frshaka/sankhya-schema-mcp/releases/download/v1.0/instantclient-linux.zip"
+REPO_URL="https://github.com/ratk/sankhya-schema-mcp.git"
+INSTANTCLIENT_URL="https://github.com/ratk/sankhya-schema-mcp/releases/download/v1.0/instantclient-linux.zip"
 
 set -e
 
