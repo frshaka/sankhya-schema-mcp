@@ -136,7 +136,7 @@ chmod +x "$START_SCRIPT"
 # ---------------------------------------------------------------------------
 echo "[4/4] Registrando MCP no Claude Code..."
 
-CLAUDE_JSON="$HOME/.claude/.claude.json"
+CLAUDE_JSON="$HOME/.claude.json"
 
 python3 - <<PYEOF
 import json, os
