@@ -39,7 +39,8 @@ if [ ! -f "$WORK_DIR/instantclient/libclntsh.so" ]; then
 fi
 
 echo "[3/4] Gerando $OUTPUT_ZIP ..."
-(cd "$WORK_DIR" && zip -qr "$OUTPUT_ZIP" instantclient/)
+# -y preserva symlinks no zip em vez de copiar o conteúdo dos arquivos apontados
+(cd "$WORK_DIR" && zip -qry "$OUTPUT_ZIP" instantclient/)
 
 echo "[4/4] Limpando temporários ..."
 rm -rf "$WORK_DIR"
