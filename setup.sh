@@ -88,14 +88,24 @@ fi
 
 # ---------------------------------------------------------------------------
 # Verificar libaio (dependência do Oracle Instant Client no Linux)
+# Ubuntu 24+ renomeou libaio.so.1 para libaio.so.1t64 — cria symlink local
 # ---------------------------------------------------------------------------
-if ! ldconfig -p 2>/dev/null | grep -q "libaio.so"; then
+LIBAIO_PATH=$(ldconfig -p 2>/dev/null | grep "libaio.so" | awk '{print $NF}' | head -1)
+
+if [ -z "$LIBAIO_PATH" ]; then
     echo ""
     echo "[AVISO] libaio não encontrado. Instale com:"
     echo "  Ubuntu 24+:    sudo apt-get install -y libaio1t64"
     echo "  Ubuntu 22/20:  sudo apt-get install -y libaio1"
     echo "  RHEL/CentOS:   sudo yum install -y libaio"
     echo ""
+elif [ ! -f "$INSTANTCLIENT_DIR/libaio.so.1" ]; then
+    # Se só existe libaio.so.1t64 (Ubuntu 24+), cria symlink dentro do instantclient/
+    # para que LD_LIBRARY_PATH resolva sem sudo
+    if echo "$LIBAIO_PATH" | grep -q "1t64"; then
+        ln -sf "$LIBAIO_PATH" "$INSTANTCLIENT_DIR/libaio.so.1"
+        echo "[OK] Symlink libaio.so.1 criado → $LIBAIO_PATH"
+    fi
 fi
 
 # ---------------------------------------------------------------------------
