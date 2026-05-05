@@ -89,10 +89,11 @@ fi
 # ---------------------------------------------------------------------------
 # Verificar libaio (dependência do Oracle Instant Client no Linux)
 # ---------------------------------------------------------------------------
-if ! ldconfig -p 2>/dev/null | grep -q libaio; then
+if ! ldconfig -p 2>/dev/null | grep -q "libaio.so"; then
     echo ""
     echo "[AVISO] libaio não encontrado. Instale com:"
-    echo "  Ubuntu/Debian: sudo apt-get install -y libaio1"
+    echo "  Ubuntu 24+:    sudo apt-get install -y libaio1t64"
+    echo "  Ubuntu 22/20:  sudo apt-get install -y libaio1"
     echo "  RHEL/CentOS:   sudo yum install -y libaio"
     echo ""
 fi
