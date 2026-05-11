@@ -8,69 +8,55 @@ durante uma conversa com o Claude.
 
 ## Pré-requisitos
 
-- **Python 3.10 ou superior** — [python.org/downloads](https://www.python.org/downloads/)
-  Marque "Add Python to PATH" durante a instalação.
-- **PowerShell 7+** (pwsh) — [aka.ms/powershell](https://aka.ms/powershell)
+- **Python 3.10 ou superior**
 - **Claude Code** instalado e funcionando
 - Acesso ao banco Oracle do Sankhya (local ou container Docker)
 
+**Windows:** PowerShell 7+ (pwsh) — [aka.ms/powershell](https://aka.ms/powershell)
+
+**Linux:** `bash`, `curl`, `unzip`, `python3-venv`, `libaio1`
+```bash
+sudo apt-get install -y curl unzip python3-venv libaio1
+```
+
 ---
 
-## Passo 1 — Clonar o projeto
+## Instalação no Windows
+
+### Passo 1 — Clonar o projeto
 
 ```powershell
 git clone https://github.com/frshaka/sankhya-schema-mcp.git
 cd sankhya-schema-mcp
 ```
 
----
-
-## Passo 2 — Rodar o setup automático
-
-O script `setup.ps1` faz tudo de uma vez:
+### Passo 2 — Rodar o setup automático
 
 ```powershell
 pwsh -File setup.ps1
 ```
 
 O que o script faz:
-1. Baixa e extrai `instantclient/` do GitHub Releases (~135 MB) — pulado se já existir
+1. Baixa e extrai `instantclient/` do GitHub Releases — pulado se já existir
 2. Cria o ambiente virtual `.venv/` — pulado se já existir
 3. Instala as dependências: `mcp`, `oracledb`, `python-dotenv`
 4. Registra o MCP no Claude Code (`~/.claude/.claude.json`)
 
-> **Pré-requisitos:** Python 3.10+ e PowerShell 7+ instalados e no PATH.
-
----
-
-## Passo 3 — Ajustar as credenciais do banco
+### Passo 3 — Ajustar as credenciais do banco
 
 Abra o arquivo `start.ps1` e edite as variáveis conforme o ambiente:
 
 ```powershell
-$env:SANKHYA_DB_HOST     = "localhost"   # IP ou hostname do servidor Oracle
-$env:SANKHYA_DB_PORT     = "1521"        # porta (padrão Oracle)
-$env:SANKHYA_DB_SERVICE  = "XE"          # SID ou Service Name do banco
-$env:SANKHYA_DB_USER     = "SANKHYA"     # usuário Oracle
-$env:SANKHYA_DB_PASSWORD = "developer"   # senha
+$env:SANKHYA_DB_HOST     = "localhost"
+$env:SANKHYA_DB_PORT     = "1521"
+$env:SANKHYA_DB_SERVICE  = "XE"
+$env:SANKHYA_DB_USER     = "SANKHYA"
+$env:SANKHYA_DB_PASSWORD = "developer"
 ```
 
-> As duas últimas linhas do `start.ps1` **não precisam ser alteradas** —
-> elas já usam o caminho relativo correto.
+### Passo 4 — Registro manual do MCP (se necessário)
 
----
-
-## Passo 4 — Registrar o MCP no Claude Code
-
-O `setup.ps1` já faz isso automaticamente (etapa 4/4).
-
-Caso precise registrar manualmente, edite o arquivo:
-
-```
-C:\Users\<seu-usuario>\.claude\.claude.json
-```
-
-Adicione (ou complemente) a chave `mcpServers` na raiz do JSON:
+Edite `C:\Users\<seu-usuario>\.claude\.claude.json` e adicione:
 
 ```json
 "mcpServers": {
@@ -85,7 +71,62 @@ Adicione (ou complemente) a chave `mcpServers` na raiz do JSON:
 
 ---
 
-## Passo 5 — Verificar a instalação
+## Instalação no Linux
+
+### Passo 1 — Clonar o projeto
+
+```bash
+git clone https://github.com/frshaka/sankhya-schema-mcp.git
+cd sankhya-schema-mcp
+```
+
+### Passo 2 — Rodar o setup automático
+
+```bash
+bash setup.sh
+```
+
+O que o script faz:
+1. Baixa e extrai `instantclient/` (Linux) do GitHub Releases — pulado se já existir
+2. Verifica se `libaio1` está instalado — avisa se não estiver
+3. Cria o ambiente virtual `.venv/` — pulado se já existir
+4. Instala as dependências: `mcp`, `oracledb`, `python-dotenv`
+5. Registra o MCP no Claude Code (`~/.claude/.claude.json`)
+
+> Se o download do instantclient falhar, baixe manualmente em:
+> https://www.oracle.com/database/technologies/instant-client/linux-x86-64-downloads.html
+> Extraia para a pasta `instantclient/` dentro do projeto.
+
+### Passo 3 — Ajustar as credenciais do banco
+
+Abra o arquivo `start.sh` e edite as variáveis:
+
+```bash
+export SANKHYA_DB_HOST="localhost"
+export SANKHYA_DB_PORT="1521"
+export SANKHYA_DB_SERVICE="XE"
+export SANKHYA_DB_USER="SANKHYA"
+export SANKHYA_DB_PASSWORD="developer"
+```
+
+### Passo 4 — Registro manual do MCP (se necessário)
+
+Edite `~/.claude/.claude.json` e adicione:
+
+```json
+"mcpServers": {
+  "sankhya-schema": {
+    "type": "stdio",
+    "command": "bash",
+    "args": ["/SEU_CAMINHO/sankhya-mcp/start.sh"],
+    "env": {}
+  }
+}
+```
+
+---
+
+## Verificar a instalação (Windows e Linux)
 
 Reinicie o Claude Code e execute no chat:
 
@@ -122,27 +163,37 @@ Descreva a tabela TGFCAB
 
 ## Solução de problemas
 
-### "python não é reconhecido"
-O Python não está no PATH. Reinstale marcando a opção "Add Python to PATH"
-ou informe o caminho completo do executável em `start.ps1`.
+### Windows — "python não é reconhecido"
+O Python não está no PATH. Reinstale marcando "Add Python to PATH".
 
-### "pwsh não é reconhecido"
+### Windows — "pwsh não é reconhecido"
 Instale o PowerShell 7+: [aka.ms/powershell](https://aka.ms/powershell)
 
-### MCP aparece mas dá erro de conexão
+### Windows — MCP com erro de conexão
 - Verifique se o banco Oracle está rodando e acessível
-- Confirme host, porta, SID e credenciais no `start.ps1`
-- Teste a conexão direto pelo Python:
-  ```powershell
-  .\.venv\Scripts\python.exe -c "import oracledb; print('oracledb OK')"
-  ```
+- Confirme credenciais no `start.ps1`
+- Teste: `.\.venv\Scripts\python.exe -c "import oracledb; print('OK')"`
 
-### "DPI-1047: Cannot locate a 64-bit Oracle Client library"
-A pasta `instantclient\` está ausente ou incompleta. Rode novamente o setup:
+### Windows — "DPI-1047: Cannot locate a 64-bit Oracle Client library"
 ```powershell
-Remove-Item instantclient -Recurse -Force   # remove pasta corrompida
+Remove-Item instantclient -Recurse -Force
 pwsh -File setup.ps1
 ```
+
+### Linux — "DPI-1047: Cannot locate a 64-bit Oracle Client library"
+```bash
+rm -rf instantclient/
+bash setup.sh
+```
+Se persistir, verifique se `libaio1` está instalado:
+```bash
+sudo apt-get install -y libaio1
+```
+
+### Linux — MCP com erro de conexão
+- Confirme credenciais no `start.sh`
+- Teste: `.venv/bin/python -c "import oracledb; print('OK')"`
+- Verifique se `LD_LIBRARY_PATH` aponta para `instantclient/`
 
 ---
 

@@ -20,10 +20,18 @@ conectando ao banco Oracle local via Oracle Instant Client (modo thick).
 
 ## Instalação rápida
 
+**Windows (PowerShell 7+):**
 ```powershell
 git clone https://github.com/frshaka/sankhya-schema-mcp.git
 cd sankhya-schema-mcp
 pwsh -File setup.ps1
+```
+
+**Linux:**
+```bash
+git clone https://github.com/frshaka/sankhya-schema-mcp.git
+cd sankhya-schema-mcp
+bash setup.sh
 ```
 
 O script baixa o Oracle Instant Client, cria o ambiente virtual Python, instala as dependências e registra o MCP no Claude Code automaticamente.
