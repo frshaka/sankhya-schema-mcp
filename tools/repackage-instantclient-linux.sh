@@ -49,5 +49,5 @@ SIZE=$(du -sh "$OUTPUT_ZIP" | cut -f1)
 echo ""
 echo "[OK] $OUTPUT_ZIP gerado ($SIZE)"
 echo ""
-echo "Próximo passo: suba este arquivo no GitHub Release v1.0 com o nome 'instantclient-linux.zip':"
-echo "  gh release upload v1.0 instantclient-linux.zip --repo frshaka/sankhya-schema-mcp"
+echo "Próximo passo: suba este arquivo no GitHub Release v1.1 com o nome 'instantclient-linux.zip':"
+echo "  gh release upload v1.1 instantclient-linux.zip --repo frshaka/sankhya-schema-mcp"

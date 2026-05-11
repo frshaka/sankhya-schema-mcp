@@ -1,7 +1,7 @@
 """
 Sankhya Schema MCP Server
 Conecta ao banco Oracle local (container Docker) via oracledb em modo thick
-com Oracle Instant Client 11.2.
+com Oracle Instant Client 21c.
 """
 
 import os
@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ---------------------------------------------------------------------------
-# Oracle Instant Client — modo thick para compatibilidade com Oracle 11g
+# Oracle Instant Client — modo thick para compatibilidade com Oracle 11g+
 # ---------------------------------------------------------------------------
 
 _INSTANTCLIENT_DIR = str(Path(__file__).parent.parent / "instantclient")
