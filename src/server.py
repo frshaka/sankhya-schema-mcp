@@ -102,7 +102,12 @@ mcp = FastMCP(
     instructions=(
         "Servidor de exploração do schema Oracle do Sankhya ERP. "
         "Use as tools para entender estrutura de tabelas, buscar campos, "
-        "validar queries e explorar relacionamentos antes de escrever SQL."
+        "validar queries e explorar relacionamentos antes de escrever SQL.\n\n"
+        "REGRAS OBRIGATÓRIAS:\n"
+        "- NUNCA tente conexão direta ao banco Oracle. Use EXCLUSIVAMENTE as tools deste MCP.\n"
+        "- NUNCA invente, chute ou assuma credenciais (usuário, senha, host, service name).\n"
+        "- Se uma tool falhar ou o MCP não responder, informe o usuário e aguarde orientação.\n"
+        "- Não tente contornar o MCP usando scripts Python, curl, ou qualquer outro meio."
     ),
 )
 
