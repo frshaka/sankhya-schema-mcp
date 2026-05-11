@@ -116,7 +116,10 @@ mcp = FastMCP(
         "- NUNCA tente conexão direta ao banco Oracle. Use EXCLUSIVAMENTE as tools deste MCP.\n"
         "- NUNCA invente, chute ou assuma credenciais (usuário, senha, host, service name).\n"
         "- Se uma tool falhar ou o MCP não responder, informe o usuário e aguarde orientação.\n"
-        "- Não tente contornar o MCP usando scripts Python, curl, ou qualquer outro meio."
+        "- Não tente contornar o MCP usando scripts Python, curl, ou qualquer outro meio.\n"
+        "- NUNCA delegue tarefas que dependem das tools deste MCP para subagents (Agent tool). "
+        "Subagents não têm acesso a tools de MCP servers. Sempre execute consultas ao MCP "
+        "diretamente no agente principal e, se necessário, passe os resultados como contexto para o subagent."
     ),
 )
 
