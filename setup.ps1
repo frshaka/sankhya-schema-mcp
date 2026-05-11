@@ -102,7 +102,7 @@ Write-Host "[OK] Dependencias instaladas." -ForegroundColor Green
 # ---------------------------------------------------------------------------
 # 4. Registrar MCP no Claude Code
 # ---------------------------------------------------------------------------
-Write-Host "[4/4] Registrando MCP no Claude Code..." -ForegroundColor Yellow
+Write-Host "[4/5] Registrando MCP no Claude Code..." -ForegroundColor Yellow
 
 $StartScript = Join-Path $ProjectRoot "start.ps1"
 $McpEntry = [PSCustomObject]@{
@@ -132,6 +132,50 @@ if (-not (Test-Path $ClaudeJson)) {
     }
 }
 
+# ---------------------------------------------------------------------------
+# 5. Liberar permissoes das tools MCP no Claude Code
+# ---------------------------------------------------------------------------
+Write-Host "[5/5] Liberando permissoes das tools MCP..." -ForegroundColor Yellow
+
+$SettingsJson = Join-Path $env:USERPROFILE ".claude\settings.json"
+
+if (-not (Test-Path $SettingsJson)) {
+    # Criar settings.json com permissoes minimas
+    $settings = [PSCustomObject]@{
+        permissions = [PSCustomObject]@{
+            allow = @("mcp__sankhya-schema__*")
+        }
+    }
+    New-Item -ItemType Directory -Path (Split-Path $SettingsJson) -Force | Out-Null
+    $settings | ConvertTo-Json -Depth 10 | Set-Content $SettingsJson -Encoding UTF8
+    Write-Host "  [OK] Permissoes configuradas (settings.json criado)." -ForegroundColor Green
+} else {
+    $settings = Get-Content $SettingsJson -Raw | ConvertFrom-Json
+
+    if (-not ($settings.PSObject.Properties.Name -contains "permissions")) {
+        $settings | Add-Member -MemberType NoteProperty -Name "permissions" -Value ([PSCustomObject]@{
+            allow = @("mcp__sankhya-schema__*")
+        }) -Force
+        $settings | ConvertTo-Json -Depth 10 | Set-Content $SettingsJson -Encoding UTF8
+        Write-Host "  [OK] Permissoes configuradas." -ForegroundColor Green
+    } elseif (-not ($settings.permissions.PSObject.Properties.Name -contains "allow")) {
+        $settings.permissions | Add-Member -MemberType NoteProperty -Name "allow" -Value @("mcp__sankhya-schema__*") -Force
+        $settings | ConvertTo-Json -Depth 10 | Set-Content $SettingsJson -Encoding UTF8
+        Write-Host "  [OK] Permissoes configuradas." -ForegroundColor Green
+    } else {
+        $allowList = @($settings.permissions.allow)
+        if ($allowList -contains "mcp__sankhya-schema__*") {
+            Write-Host "  [OK] Permissoes ja configuradas." -ForegroundColor Green
+        } else {
+            $allowList += "mcp__sankhya-schema__*"
+            $settings.permissions.allow = $allowList
+            $settings | ConvertTo-Json -Depth 10 | Set-Content $SettingsJson -Encoding UTF8
+            Write-Host "  [OK] Permissoes adicionadas." -ForegroundColor Green
+        }
+    }
+}
+
 Write-Host ""
 Write-Host "=== Instalacao concluida! ===" -ForegroundColor Cyan
 Write-Host "Proximo passo: edite as credenciais em start.ps1, reinicie o Claude Code e rode /mcp para confirmar."
+Write-Host "As tools do MCP foram liberadas automaticamente — nao sera necessario aprovar permissoes manualmente."

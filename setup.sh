@@ -134,7 +134,7 @@ chmod +x "$START_SCRIPT"
 # ---------------------------------------------------------------------------
 # 5. Registrar MCP no Claude Code
 # ---------------------------------------------------------------------------
-echo "[4/4] Registrando MCP no Claude Code..."
+echo "[4/5] Registrando MCP no Claude Code..."
 
 CLAUDE_JSON="$HOME/.claude.json"
 
@@ -169,6 +169,46 @@ else:
     print("  [OK] MCP registrado com sucesso.")
 PYEOF
 
+# ---------------------------------------------------------------------------
+# 6. Liberar permissoes das tools MCP no Claude Code
+# ---------------------------------------------------------------------------
+echo "[5/5] Liberando permissões das tools MCP..."
+
+python3 - <<PYEOF
+import json, os
+
+settings_json = os.path.expanduser("~/.claude/settings.json")
+
+os.makedirs(os.path.dirname(settings_json), exist_ok=True)
+
+if os.path.exists(settings_json):
+    with open(settings_json, "r", encoding="utf-8") as f:
+        settings = json.load(f)
+else:
+    settings = {}
+
+permission_rule = "mcp__sankhya-schema__*"
+
+if "permissions" not in settings:
+    settings["permissions"] = {"allow": [permission_rule]}
+    changed = True
+elif "allow" not in settings["permissions"]:
+    settings["permissions"]["allow"] = [permission_rule]
+    changed = True
+elif permission_rule not in settings["permissions"]["allow"]:
+    settings["permissions"]["allow"].append(permission_rule)
+    changed = True
+else:
+    changed = False
+    print("  [OK] Permissões já configuradas.")
+
+if changed:
+    with open(settings_json, "w", encoding="utf-8") as f:
+        json.dump(settings, f, indent=2, ensure_ascii=False)
+    print("  [OK] Permissões configuradas.")
+PYEOF
+
 echo ""
 echo "=== Instalação concluída! ==="
 echo "Próximo passo: edite as credenciais em start.sh, reinicie o Claude Code e rode /mcp para confirmar."
+echo "As tools do MCP foram liberadas automaticamente — não será necessário aprovar permissões manualmente."
