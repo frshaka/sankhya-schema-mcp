@@ -110,9 +110,15 @@ mcp = FastMCP(
     name="sankhya-schema",
     instructions=(
         "Servidor de exploração do schema Oracle do Sankhya ERP. "
-        "Use as tools para entender estrutura de tabelas, buscar campos, "
+        "Use as tools deste MCP para entender estrutura de tabelas, buscar campos, "
         "validar queries e explorar relacionamentos antes de escrever SQL.\n\n"
-        "REGRAS OBRIGATÓRIAS:\n"
+        "COMPORTAMENTO OBRIGATÓRIO:\n"
+        "- Para QUALQUER pergunta sobre tabelas, campos, queries ou estrutura do Sankhya, "
+        "você DEVE usar as tools deste MCP (search_tables, describe_table, etc.) ANTES de responder.\n"
+        "- NUNCA invente, assuma ou chute nomes de tabelas, colunas ou relacionamentos. "
+        "Sempre consulte o schema real via as tools disponíveis.\n"
+        "- NUNCA escreva SQL sem antes validar a existência das tabelas e colunas via describe_table.\n\n"
+        "REGRAS ADICIONAIS:\n"
         "- NUNCA tente conexão direta ao banco Oracle. Use EXCLUSIVAMENTE as tools deste MCP.\n"
         "- NUNCA invente, chute ou assuma credenciais (usuário, senha, host, service name).\n"
         "- Se uma tool falhar ou o MCP não responder, informe o usuário e aguarde orientação.\n"
