@@ -15,11 +15,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ---------------------------------------------------------------------------
-# Oracle Instant Client — modo thick para compatibilidade com Oracle 11g+
+# Oracle Instant Client — inicialização lazy para não bloquear o handshake MCP
 # ---------------------------------------------------------------------------
 
 _INSTANTCLIENT_DIR = str(Path(__file__).parent.parent / "instantclient")
-oracledb.init_oracle_client(lib_dir=_INSTANTCLIENT_DIR)
+_oracle_client_initialized = False
+
+
+def _ensure_oracle_client():
+    global _oracle_client_initialized
+    if not _oracle_client_initialized:
+        oracledb.init_oracle_client(lib_dir=_INSTANTCLIENT_DIR)
+        _oracle_client_initialized = True
+
 
 # ---------------------------------------------------------------------------
 # Configuração de conexão
@@ -39,6 +47,7 @@ _pool: Optional[oracledb.ConnectionPool] = None
 def get_pool() -> oracledb.ConnectionPool:
     global _pool
     if _pool is None:
+        _ensure_oracle_client()
         dsn = oracledb.makedsn(DB_CONFIG["host"], DB_CONFIG["port"], sid=DB_CONFIG["sid"])
         _pool = oracledb.create_pool(
             user=DB_CONFIG["user"],
