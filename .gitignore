@@ -12,6 +12,7 @@ __pycache__/
 
 # Oracle Instant Client — binários grandes, instalar localmente
 instantclient/
+*.zip
 
 # IDEs
 .idea/
