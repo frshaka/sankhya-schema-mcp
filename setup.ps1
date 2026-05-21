@@ -1,9 +1,29 @@
+param(
+    [string]$ConfigDir
+)
+
 # URL do repositorio e do instantclient no GitHub Releases
 $RepoUrl          = "https://github.com/frshaka/sankhya-schema-mcp.git"
 $InstantClientUrl = "https://github.com/frshaka/sankhya-schema-mcp/releases/download/v1.1/instantclient.zip"
 
 Write-Host "=== Setup Sankhya Schema MCP ===" -ForegroundColor Cyan
 Write-Host ""
+
+# ---------------------------------------------------------------------------
+# Resolver caminhos de configuracao do Claude Code
+# - Sem --config-dir: usa default ($HOME\.claude.json + $HOME\.claude\settings.json)
+# - Com --config-dir: ambos arquivos ficam dentro do diretorio informado
+# ---------------------------------------------------------------------------
+if ([string]::IsNullOrWhiteSpace($ConfigDir)) {
+    $ClaudeJson   = Join-Path $env:USERPROFILE ".claude.json"
+    $SettingsJson = Join-Path $env:USERPROFILE ".claude\settings.json"
+    Write-Host "[INFO] Usando configuracao padrao do Claude Code." -ForegroundColor DarkGray
+} else {
+    $ConfigDir    = $ConfigDir.Trim()
+    $ClaudeJson   = Join-Path $ConfigDir ".claude.json"
+    $SettingsJson = Join-Path $ConfigDir "settings.json"
+    Write-Host "[INFO] Usando diretorio de configuracao: $ConfigDir" -ForegroundColor DarkGray
+}
 
 # ---------------------------------------------------------------------------
 # Determinar raiz do projeto
@@ -37,7 +57,11 @@ if ($HasProjectFiles) {
     if ((Resolve-Path $PSCommandPath).Path -ne (Resolve-Path $clonedSetup -ErrorAction SilentlyContinue)?.Path) {
         Write-Host ""
         Write-Host "Continuando setup a partir do projeto clonado..." -ForegroundColor Cyan
-        & pwsh -NoProfile -ExecutionPolicy Bypass -File $clonedSetup
+        $invokeArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $clonedSetup)
+        if (-not [string]::IsNullOrWhiteSpace($ConfigDir)) {
+            $invokeArgs += @("-ConfigDir", $ConfigDir)
+        }
+        & pwsh @invokeArgs
         exit $LASTEXITCODE
     }
 }
@@ -112,32 +136,33 @@ $McpEntry = [PSCustomObject]@{
     env     = [PSCustomObject]@{}
 }
 
-$ClaudeJson = Join-Path $env:USERPROFILE ".claude\.claude.json"
+$ClaudeJsonDir = Split-Path $ClaudeJson -Parent
+if (-not (Test-Path $ClaudeJsonDir)) {
+    New-Item -ItemType Directory -Path $ClaudeJsonDir -Force | Out-Null
+}
 
 if (-not (Test-Path $ClaudeJson)) {
-    Write-Host "  [AVISO] $ClaudeJson nao encontrado — registre o MCP manualmente." -ForegroundColor Yellow
+    $json = [PSCustomObject]@{ mcpServers = [PSCustomObject]@{} }
 } else {
     $json = Get-Content $ClaudeJson -Raw | ConvertFrom-Json
+}
 
-    if (-not ($json.PSObject.Properties.Name -contains "mcpServers")) {
-        $json | Add-Member -MemberType NoteProperty -Name "mcpServers" -Value ([PSCustomObject]@{}) -Force
-    }
+if (-not ($json.PSObject.Properties.Name -contains "mcpServers")) {
+    $json | Add-Member -MemberType NoteProperty -Name "mcpServers" -Value ([PSCustomObject]@{}) -Force
+}
 
-    if ($json.mcpServers.PSObject.Properties.Name -contains "sankhya-schema") {
-        Write-Host "  [OK] MCP ja registrado." -ForegroundColor Green
-    } else {
-        $json.mcpServers | Add-Member -MemberType NoteProperty -Name "sankhya-schema" -Value $McpEntry -Force
-        $json | ConvertTo-Json -Depth 20 | Set-Content $ClaudeJson -Encoding UTF8
-        Write-Host "  [OK] MCP registrado com sucesso." -ForegroundColor Green
-    }
+if ($json.mcpServers.PSObject.Properties.Name -contains "sankhya-schema") {
+    Write-Host "  [OK] MCP ja registrado em $ClaudeJson." -ForegroundColor Green
+} else {
+    $json.mcpServers | Add-Member -MemberType NoteProperty -Name "sankhya-schema" -Value $McpEntry -Force
+    $json | ConvertTo-Json -Depth 20 | Set-Content $ClaudeJson -Encoding UTF8
+    Write-Host "  [OK] MCP registrado em $ClaudeJson." -ForegroundColor Green
 }
 
 # ---------------------------------------------------------------------------
 # 5. Liberar permissoes das tools MCP no Claude Code
 # ---------------------------------------------------------------------------
 Write-Host "[5/5] Liberando permissoes das tools MCP..." -ForegroundColor Yellow
-
-$SettingsJson = Join-Path $env:USERPROFILE ".claude\settings.json"
 
 if (-not (Test-Path $SettingsJson)) {
     # Criar settings.json com permissoes minimas

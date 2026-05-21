@@ -5,6 +5,41 @@ INSTANTCLIENT_URL="https://github.com/frshaka/sankhya-schema-mcp/releases/downlo
 
 set -e
 
+# ---------------------------------------------------------------------------
+# Parse argumentos
+#   --config-dir <path>   Diretório onde gravar .claude.json e settings.json
+#                         (default: $HOME/.claude.json + $HOME/.claude/settings.json)
+# ---------------------------------------------------------------------------
+CONFIG_DIR=""
+EXTRA_ARGS=()
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --config-dir)
+            CONFIG_DIR="$2"
+            shift 2
+            ;;
+        --config-dir=*)
+            CONFIG_DIR="${1#*=}"
+            shift
+            ;;
+        *)
+            EXTRA_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+if [ -n "$CONFIG_DIR" ]; then
+    CLAUDE_JSON="$CONFIG_DIR/.claude.json"
+    SETTINGS_JSON="$CONFIG_DIR/settings.json"
+    echo "[INFO] Usando diretório de configuração: $CONFIG_DIR"
+else
+    CLAUDE_JSON="$HOME/.claude.json"
+    SETTINGS_JSON="$HOME/.claude/settings.json"
+    echo "[INFO] Usando configuração padrão do Claude Code."
+fi
+
 echo "=== Setup Sankhya Schema MCP ==="
 echo ""
 
@@ -35,7 +70,11 @@ else
     if [ "$CURRENT_SCRIPT" != "$RESOLVED_CLONE" ]; then
         echo ""
         echo "Continuando setup a partir do projeto clonado..."
-        bash "$CLONED_SETUP"
+        if [ -n "$CONFIG_DIR" ]; then
+            bash "$CLONED_SETUP" --config-dir "$CONFIG_DIR"
+        else
+            bash "$CLONED_SETUP"
+        fi
         exit $?
     fi
 fi
@@ -136,15 +175,15 @@ chmod +x "$START_SCRIPT"
 # ---------------------------------------------------------------------------
 echo "[4/5] Registrando MCP no Claude Code..."
 
-CLAUDE_JSON="$HOME/.claude.json"
-
 python3 - <<PYEOF
 import json, os
 
 claude_json = "$CLAUDE_JSON"
 start_script = "$START_SCRIPT"
 
-os.makedirs(os.path.dirname(claude_json), exist_ok=True)
+parent = os.path.dirname(claude_json)
+if parent:
+    os.makedirs(parent, exist_ok=True)
 
 if os.path.exists(claude_json):
     with open(claude_json, "r", encoding="utf-8") as f:
@@ -156,7 +195,7 @@ if "mcpServers" not in data:
     data["mcpServers"] = {}
 
 if "sankhya-schema" in data["mcpServers"]:
-    print("  [OK] MCP já registrado.")
+    print(f"  [OK] MCP já registrado em {claude_json}.")
 else:
     data["mcpServers"]["sankhya-schema"] = {
         "type": "stdio",
@@ -166,7 +205,7 @@ else:
     }
     with open(claude_json, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-    print("  [OK] MCP registrado com sucesso.")
+    print(f"  [OK] MCP registrado em {claude_json}.")
 PYEOF
 
 # ---------------------------------------------------------------------------
@@ -177,9 +216,11 @@ echo "[5/5] Liberando permissões das tools MCP..."
 python3 - <<PYEOF
 import json, os
 
-settings_json = os.path.expanduser("~/.claude/settings.json")
+settings_json = "$SETTINGS_JSON"
 
-os.makedirs(os.path.dirname(settings_json), exist_ok=True)
+parent = os.path.dirname(settings_json)
+if parent:
+    os.makedirs(parent, exist_ok=True)
 
 if os.path.exists(settings_json):
     with open(settings_json, "r", encoding="utf-8") as f:
@@ -205,7 +246,7 @@ else:
 if changed:
     with open(settings_json, "w", encoding="utf-8") as f:
         json.dump(settings, f, indent=2, ensure_ascii=False)
-    print("  [OK] Permissões configuradas.")
+    print(f"  [OK] Permissões configuradas em {settings_json}.")
 PYEOF
 
 echo ""
