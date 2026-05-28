@@ -9,12 +9,13 @@ Este guia cobre a instalação completa do servidor MCP que conecta o Claude Cod
 1. [Pré-requisitos](#pré-requisitos)
 2. [Instalação no Windows](#instalação-no-windows)
 3. [Instalação no Linux](#instalação-no-linux)
-4. [Configuração das credenciais](#configuração-das-credenciais)
-5. [Registro manual do MCP](#registro-manual-do-mcp)
-6. [Verificação da instalação](#verificação-da-instalação)
-7. [Atualização](#atualização)
-8. [Desinstalação](#desinstalação)
-9. [Solução de problemas](#solução-de-problemas)
+4. [Ambiente de desenvolvimento local](#ambiente-de-desenvolvimento-local)
+5. [Configuração das credenciais](#configuração-das-credenciais)
+6. [Registro manual do MCP](#registro-manual-do-mcp)
+7. [Verificação da instalação](#verificação-da-instalação)
+8. [Atualização](#atualização)
+9. [Desinstalação](#desinstalação)
+10. [Solução de problemas](#solução-de-problemas)
 
 ---
 
@@ -210,6 +211,78 @@ SANKHYA_DB_PASSWORD=developer
 ### Passo 5 — Reiniciar o Claude Code
 
 Feche e abra o Claude Code novamente.
+
+---
+
+## Ambiente de desenvolvimento local
+
+Se você não tem um banco Oracle disponível, use a imagem Docker oficial da Sankhya para montar um ambiente local completo.
+
+### Banco de dados com Docker
+
+#### Criando o volume de dados
+
+```bash
+docker volume create skdev-oracle-volume
+```
+
+#### Iniciando o container
+
+```bash
+docker run -d --name skdev-oracle --shm-size=1g -p 1521:1521 -p 5500:5500 -v skdev-oracle-volume:/opt/oracle/oradata sankhyaimages/skdev-oracle:1.1.0
+```
+
+> ⚠️ A primeira inicialização pode levar de **20 a 30 minutos**. Acompanhe o progresso com:
+> ```bash
+> docker logs -f skdev-oracle
+> ```
+
+#### Credenciais de conexão
+
+| Endereço | Porta | SID | Usuário | Senha |
+|----------|-------|-----|---------|-------|
+| `localhost` | `1521` | `XE` | `SANKHYA` | `developer` |
+
+Esses valores correspondem aos padrões do `.env.example`.
+
+#### Gerenciar o container
+
+```bash
+docker stop skdev-oracle    # parar
+docker start skdev-oracle   # reiniciar
+```
+
+---
+
+### Servidor de aplicação (WildFly)
+
+Faça o download do [WildFly 23.0](https://downloads.sankhya.com.br/downloads?app=WildFly&c=1) e extraia em um local de fácil acesso (ex: `C:\wildfly` ou `/home/user/wildfly`).
+
+Inicie o servidor a partir da pasta `bin` do WildFly:
+
+**Windows:**
+```bash
+.\standalone.bat
+```
+
+**Linux:**
+```bash
+./standalone.sh
+```
+
+Para configuração detalhada do WildFly:
+- [Manual de Instalação em Linux](https://ajuda.sankhya.com.br/hc/pt-br/articles/360045547894-Manual-de-Instala%C3%A7%C3%A3o-Sankhya-Om-em-Ambiente-Linux#Configura%C3%A7%C3%A3odoWildfly)
+- [Manual de Instalação em Windows](https://ajuda.sankhya.com.br/hc/pt-br/articles/360045695134-Manual-de-Instala%C3%A7%C3%A3o-Sankhya-Om-em-Ambiente-Windows)
+
+---
+
+### Configuração do WPM e Sankhya OM
+
+1. Acesse o WPM no navegador: `http://localhost:8080/wpm/`
+2. A senha padrão no primeiro acesso é `admin` — você será solicitado a alterá-la.
+3. Na tela de configuração, insira os dados de conexão do banco configurado no Docker.
+4. Após a conexão, o WPM permitirá que você baixe e instale a versão desejada do Sankhya OM. Escolha sempre a versão mais recente disponível.
+5. Siga o processo de instalação. Ao final, seu ambiente estará pronto.
 
 ---
 
