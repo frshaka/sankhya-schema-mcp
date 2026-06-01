@@ -84,7 +84,9 @@ Conteúdo do `.env`:
 ```ini
 SANKHYA_DB_HOST=localhost
 SANKHYA_DB_PORT=1521
+# Conexão por SID (padrão). Para conectar por service name, use SANKHYA_DB_SERVICE_NAME (tem precedência).
 SANKHYA_DB_SERVICE=XE
+# SANKHYA_DB_SERVICE_NAME=ORCLPDB1
 SANKHYA_DB_USER=SANKHYA
 SANKHYA_DB_PASSWORD=developer
 ```

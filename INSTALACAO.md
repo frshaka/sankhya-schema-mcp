@@ -296,7 +296,8 @@ As credenciais ficam no arquivo `.env` na raiz do projeto. Este arquivo **não �
 |----------|-----------|--------------|
 | `SANKHYA_DB_HOST` | IP ou hostname do servidor Oracle | `localhost` |
 | `SANKHYA_DB_PORT` | Porta do listener Oracle | `1521` |
-| `SANKHYA_DB_SERVICE` | SID ou Service Name do banco | `XE` |
+| `SANKHYA_DB_SERVICE` | SID do banco | `XE` |
+| `SANKHYA_DB_SERVICE_NAME` | Service name do banco. Quando informado, tem precedência sobre o SID | _(vazio)_ |
 | `SANKHYA_DB_USER` | Usuário do banco (schema Sankhya) | `SANKHYA` |
 | `SANKHYA_DB_PASSWORD` | Senha do usuário | `developer` |
 
@@ -320,11 +321,12 @@ SANKHYA_DB_USER=SANKHYA
 SANKHYA_DB_PASSWORD=senha_homolog
 ```
 
-**Servidor de produção:**
+**Servidor de produção (conexão por service name):**
 ```ini
 SANKHYA_DB_HOST=10.0.0.100
 SANKHYA_DB_PORT=1521
-SANKHYA_DB_SERVICE=SANKHYA_PROD
+# Service name tem precedência sobre o SID quando informado
+SANKHYA_DB_SERVICE_NAME=SANKHYA_PROD
 SANKHYA_DB_USER=SANKHYA
 SANKHYA_DB_PASSWORD=consultar_dba
 ```

@@ -34,11 +34,12 @@ def _ensure_oracle_client():
 # ---------------------------------------------------------------------------
 
 DB_CONFIG = {
-    "host":     os.getenv("SANKHYA_DB_HOST",     "localhost"),
-    "port":     int(os.getenv("SANKHYA_DB_PORT", "1521")),
-    "sid":      os.getenv("SANKHYA_DB_SERVICE",  "XE"),
-    "user":     os.getenv("SANKHYA_DB_USER",     "SANKHYA"),
-    "password": os.getenv("SANKHYA_DB_PASSWORD", "oracle"),
+    "host":         os.getenv("SANKHYA_DB_HOST",         "localhost"),
+    "port":         int(os.getenv("SANKHYA_DB_PORT",     "1521")),
+    "sid":          os.getenv("SANKHYA_DB_SERVICE",      "XE"),
+    "service_name": os.getenv("SANKHYA_DB_SERVICE_NAME", None),
+    "user":         os.getenv("SANKHYA_DB_USER",         "SANKHYA"),
+    "password":     os.getenv("SANKHYA_DB_PASSWORD",     "oracle"),
 }
 
 _pool: Optional[oracledb.ConnectionPool] = None
@@ -48,7 +49,17 @@ def get_pool() -> oracledb.ConnectionPool:
     global _pool
     if _pool is None:
         _ensure_oracle_client()
-        dsn = oracledb.makedsn(DB_CONFIG["host"], DB_CONFIG["port"], sid=DB_CONFIG["sid"])
+        # service_name tem precedência sobre SID quando informado
+        if DB_CONFIG["service_name"]:
+            dsn = oracledb.makedsn(
+                DB_CONFIG["host"], DB_CONFIG["port"],
+                service_name=DB_CONFIG["service_name"],
+            )
+        else:
+            dsn = oracledb.makedsn(
+                DB_CONFIG["host"], DB_CONFIG["port"],
+                sid=DB_CONFIG["sid"],
+            )
         _pool = oracledb.create_pool(
             user=DB_CONFIG["user"],
             password=DB_CONFIG["password"],
