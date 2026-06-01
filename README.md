@@ -93,6 +93,22 @@ SANKHYA_DB_PASSWORD=developer
 
 > O arquivo `.env` está no `.gitignore` e nunca será versionado.
 
+### Configuração por projeto (override)
+
+O `.env` acima é a configuração **geral** (usada por padrão em qualquer projeto). Para apontar o MCP a um banco diferente em um projeto específico, crie um arquivo **`.sankhya-mcp.env`** na raiz desse projeto (o diretório onde você abre o Claude Code).
+
+Na inicialização, o MCP carrega primeiro o `.env` geral e, em seguida, o `.sankhya-mcp.env` do projeto — as variáveis do projeto **sobrescrevem** as do geral. Inclua apenas o que difere; o restante é herdado.
+
+Exemplo de `.sankhya-mcp.env` em um projeto que conecta por service name:
+```ini
+SANKHYA_DB_HOST=10.100.56.7
+SANKHYA_DB_SERVICE_NAME=MEUBANCO.EXEMPLO.COM.BR
+SANKHYA_DB_USER=USUARIO_PROJETO
+SANKHYA_DB_PASSWORD=senha_do_projeto
+```
+
+> **Atenção:** o `.sankhya-mcp.env` contém credenciais. Adicione-o ao `.gitignore` do projeto.
+
 ---
 
 ## Verificação

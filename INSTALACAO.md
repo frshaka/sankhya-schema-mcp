@@ -333,6 +333,27 @@ SANKHYA_DB_PASSWORD=consultar_dba
 
 > **Atenção:** O MCP permite apenas SELECT. Não há risco de alteração de dados, mas em produção consulte o DBA para obter um usuário com permissões restritas de leitura.
 
+### Configuração por projeto (override do `.env` geral)
+
+O `.env` na raiz do projeto MCP é a configuração **geral**, usada por padrão em qualquer projeto onde o Claude Code é aberto. Quando um projeto específico precisa apontar para outro banco, crie um arquivo **`.sankhya-mcp.env`** na raiz desse projeto.
+
+**Como funciona:** o `start.ps1` carrega os arquivos nesta ordem na inicialização do MCP:
+
+1. `.env` geral (diretório do MCP) — base/defaults;
+2. `.sankhya-mcp.env` do projeto (diretório de trabalho atual) — sobrescreve o que for redefinido.
+
+Apenas as variáveis presentes no `.sankhya-mcp.env` são sobrescritas; as demais são herdadas do `.env` geral. O diretório do projeto é resolvido pelo *working directory* em que o Claude Code foi iniciado.
+
+Exemplo de `.sankhya-mcp.env` (projeto que conecta por service name em outro host):
+```ini
+SANKHYA_DB_HOST=10.100.56.7
+SANKHYA_DB_SERVICE_NAME=MEUBANCO.EXEMPLO.COM.BR
+SANKHYA_DB_USER=USUARIO_PROJETO
+SANKHYA_DB_PASSWORD=senha_do_projeto
+```
+
+> **Atenção:** o `.sankhya-mcp.env` contém credenciais. Adicione-o ao `.gitignore` do projeto.
+
 ---
 
 ## Registro manual do MCP
