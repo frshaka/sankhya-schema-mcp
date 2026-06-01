@@ -5,6 +5,7 @@ com Oracle Instant Client 21c.
 """
 
 import os
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -72,13 +73,25 @@ def get_pool() -> oracledb.ConnectionPool:
 
 
 def execute_query(sql: str, params: list = None, limit: int = 200) -> list[dict]:
-    """Executa uma query e retorna lista de dicionários."""
+    """
+    Executa uma query e retorna lista de dicionários.
+
+    A sessão é forçada a READ ONLY antes da execução: qualquer DML/DDL que
+    porventura escape da validação de aplicação é bloqueado pelo próprio Oracle
+    (ORA-01456). É a segunda camada de proteção contra escrita.
+    """
     with get_pool().acquire() as conn:
+        # Garante início de transação limpo antes de marcá-la como somente leitura
+        conn.rollback()
         with conn.cursor() as cur:
+            cur.execute("SET TRANSACTION READ ONLY")
             cur.execute(sql, params or [])
             columns = [col[0].lower() for col in cur.description]
             rows = cur.fetchmany(limit)
-            return [dict(zip(columns, row)) for row in rows]
+            result = [dict(zip(columns, row)) for row in rows]
+        # Encerra a transação somente leitura antes de devolver a conexão ao pool
+        conn.rollback()
+        return result
 
 
 def rows_to_markdown(rows: list[dict]) -> str:
@@ -111,6 +124,35 @@ def resolve_table_name(name: str) -> tuple[str, list[dict]]:
     if rows:
         return rows[0]["nometab"], rows
     return name.upper(), []
+
+
+def assert_read_only_query(sql: str) -> Optional[str]:
+    """
+    Valida que `sql` é uma única consulta de leitura (SELECT ou WITH ... SELECT).
+    Retorna a mensagem de erro se reprovar, ou None se aprovar.
+
+    Usa allowlist (mais seguro que blocklist):
+    - remove comentários (-- de linha e /* de bloco */) para impedir disfarce;
+    - exige que o comando comece com SELECT ou WITH;
+    - rejeita múltiplos comandos (;) e PL/SQL inline (WITH FUNCTION/PROCEDURE),
+      que poderiam contornar a transação READ ONLY via transação autônoma.
+    """
+    no_block = re.sub(r"/\*.*?\*/", " ", sql, flags=re.DOTALL)
+    no_comments = re.sub(r"--[^\n]*", " ", no_block)
+    core = no_comments.strip().rstrip(";").strip()
+
+    if not core:
+        return "Query vazia."
+    if ";" in core:
+        return "Múltiplos comandos não são permitidos (apenas um SELECT por chamada)."
+
+    upper = core.upper()
+    if not re.match(r"^(SELECT|WITH)\b", upper):
+        return "Apenas comandos SELECT (ou WITH ... SELECT) são permitidos."
+    if re.match(r"^WITH\s+(FUNCTION|PROCEDURE)\b", upper):
+        return "WITH FUNCTION/PROCEDURE não é permitido."
+
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -351,11 +393,9 @@ def run_query(sql: str, limit: int = 50) -> str:
     Exemplo:
       run_query("SELECT NUNOTA, CODPARC, VLRNOTA FROM TGFCAB WHERE ROWNUM <= 5")
     """
-    sql_clean = sql.strip().upper()
-    forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE", "MERGE"]
-    for keyword in forbidden:
-        if sql_clean.startswith(keyword):
-            return f"❌ Operação `{keyword}` não permitida. Apenas SELECT."
+    erro = assert_read_only_query(sql)
+    if erro:
+        return f"❌ {erro}"
 
     try:
         rows = execute_query(sql, limit=limit)
