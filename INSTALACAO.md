@@ -1,6 +1,6 @@
 # Manual de Instalação — Sankhya Schema MCP
 
-Este guia cobre a instalação completa do servidor MCP que conecta o Claude Code ao banco Oracle do Sankhya, permitindo explorar tabelas, campos, índices e executar queries SQL diretamente durante uma conversa.
+Este guia cobre a instalação completa do servidor MCP que conecta o Claude Code e/ou o Codex CLI ao banco Oracle do Sankhya, permitindo explorar tabelas, campos, índices e executar queries SQL diretamente durante uma conversa.
 
 ---
 
@@ -27,7 +27,7 @@ Este guia cobre a instalação completa do servidor MCP que conecta o Claude Cod
 |-----------|--------|---------------|----------------|
 | **Python** | 3.10 ou superior | [python.org/downloads](https://www.python.org/downloads/) | `python --version` |
 | **Git** | qualquer | [git-scm.com](https://git-scm.com/) | `git --version` |
-| **Claude Code** | qualquer | [claude.ai/code](https://claude.ai/code) | `claude --version` |
+| **Claude Code** e/ou **Codex CLI** | qualquer | [claude.ai/code](https://claude.ai/code) / [github.com/openai/codex](https://github.com/openai/codex) | `claude --version` / `codex --version` |
 | **Banco Oracle** | 11.2 ou superior | Docker ou instalação local | Acessível via host:porta |
 
 ### Windows — requisitos adicionais
@@ -78,20 +78,43 @@ cd sankhya-schema-mcp
 pwsh -File setup.ps1
 ```
 
+Logo no início, o script exibe um menu perguntando em quais CLIs registrar o MCP:
+
+```
+Em quais CLIs deseja registrar o MCP?
+  [1] Claude Code
+  [2] Codex CLI
+  [3] Ambos
+Escolha [Enter para 1]:
+```
+
+Para pular o menu (automação), use a flag `-Cli`:
+
+```powershell
+pwsh -File setup.ps1 -Cli both    # valores: claude | codex | both
+```
+
 O script executa as seguintes etapas automaticamente:
 
 | Etapa | O que faz | Condição para pular |
 |-------|-----------|---------------------|
-| 1 | Baixa o Oracle Instant Client 21c do GitHub Releases | Pasta `instantclient/` já existe |
-| 2 | Cria ambiente virtual Python em `.venv/` | Arquivo `.venv\Scripts\python.exe` já existe |
-| 3 | Instala dependências via pip | Sempre executa |
-| 4 | Registra o MCP no arquivo `~/.claude/.claude.json` | Entrada `sankhya-schema` já existe |
+| 1 | Menu de seleção dos CLIs (Claude, Codex ou ambos) | Flag `-Cli` informada |
+| 2 | Baixa o Oracle Instant Client 21c do GitHub Releases | Pasta `instantclient/` já existe |
+| 3 | Cria ambiente virtual Python em `.venv/` | Arquivo `.venv\Scripts\python.exe` já existe |
+| 4 | Instala dependências via pip | Sempre executa |
+| 5 | Registra o MCP no arquivo `~/.claude.json` | Claude não selecionado ou entrada `sankhya-schema` já existe |
+| 6 | Registra o MCP no arquivo `~/.codex/config.toml` | Codex não selecionado ou seção `[mcp_servers.sankhya-schema]` já existe |
 
-**Saída esperada (instalação limpa):**
+**Saída esperada (instalação limpa, opção Ambos):**
 
 ```
 === Setup Sankhya Schema MCP ===
 
+Em quais CLIs deseja registrar o MCP?
+  [1] Claude Code
+  [2] Codex CLI
+  [3] Ambos
+Escolha [Enter para 1]: 3
 [OK] Projeto encontrado em: C:\projetos\sankhya-schema-mcp
 [1/3] Baixando Oracle Instant Client...
 [OK] instantclient/ extraido com sucesso.
@@ -99,7 +122,11 @@ O script executa as seguintes etapas automaticamente:
 [OK] Ambiente virtual criado.
 [3/3] Instalando dependencias Python...
 [OK] Dependencias instaladas.
-[4/4] Registrando MCP no Claude Code...
+[4/5] Registrando MCP no Claude Code...
+  [OK] MCP registrado com sucesso.
+[5/5] Liberando permissoes das tools MCP...
+  [OK] Permissoes configuradas.
+[Codex] Registrando MCP no Codex CLI...
   [OK] MCP registrado com sucesso.
 
 === Instalacao concluida! ===
@@ -162,22 +189,45 @@ cd sankhya-schema-mcp
 bash setup.sh
 ```
 
+Logo no início, o script exibe um menu perguntando em quais CLIs registrar o MCP:
+
+```
+Em quais CLIs deseja registrar o MCP?
+  [1] Claude Code
+  [2] Codex CLI
+  [3] Ambos
+Escolha [Enter para 1]:
+```
+
+Para pular o menu (automação), use a flag `--cli`:
+
+```bash
+bash setup.sh --cli both    # valores: claude | codex | both
+```
+
 O script executa as seguintes etapas automaticamente:
 
 | Etapa | O que faz | Condição para pular |
 |-------|-----------|---------------------|
-| 1 | Baixa o Oracle Instant Client 21c (Linux x64) do GitHub Releases | `instantclient/libclntsh.so*` já existe |
-| 2 | Verifica libaio e cria symlink se necessário (Ubuntu 24+) | `libaio.so.1` já acessível |
-| 3 | Cria ambiente virtual Python em `.venv/` | `.venv/bin/python` já existe |
-| 4 | Instala dependências via pip | Sempre executa |
-| 5 | Torna `start.sh` executável | Sempre executa |
-| 6 | Registra o MCP no arquivo `~/.claude.json` | Entrada `sankhya-schema` já existe |
+| 1 | Menu de seleção dos CLIs (Claude, Codex ou ambos) | Flag `--cli` informada |
+| 2 | Baixa o Oracle Instant Client 21c (Linux x64) do GitHub Releases | `instantclient/libclntsh.so*` já existe |
+| 3 | Verifica libaio e cria symlink se necessário (Ubuntu 24+) | `libaio.so.1` já acessível |
+| 4 | Cria ambiente virtual Python em `.venv/` | `.venv/bin/python` já existe |
+| 5 | Instala dependências via pip | Sempre executa |
+| 6 | Torna `start.sh` executável | Sempre executa |
+| 7 | Registra o MCP no arquivo `~/.claude.json` | Claude não selecionado ou entrada `sankhya-schema` já existe |
+| 8 | Registra o MCP no arquivo `~/.codex/config.toml` | Codex não selecionado ou seção `[mcp_servers.sankhya-schema]` já existe |
 
-**Saída esperada (instalação limpa):**
+**Saída esperada (instalação limpa, opção Ambos):**
 
 ```
 === Setup Sankhya Schema MCP ===
 
+Em quais CLIs deseja registrar o MCP?
+  [1] Claude Code
+  [2] Codex CLI
+  [3] Ambos
+Escolha [Enter para 1]: 3
 [OK] Projeto encontrado em: /home/usuario/sankhya-schema-mcp
 [1/3] Baixando Oracle Instant Client para Linux...
 [OK] instantclient/ extraído com sucesso.
@@ -185,7 +235,11 @@ O script executa as seguintes etapas automaticamente:
 [OK] Ambiente virtual criado.
 [3/3] Instalando dependências Python...
 [OK] Dependências instaladas.
-[4/4] Registrando MCP no Claude Code...
+[4/5] Registrando MCP no Claude Code...
+  [OK] MCP registrado com sucesso.
+[5/5] Liberando permissões das tools MCP...
+  [OK] Permissões configuradas.
+[Codex] Registrando MCP no Codex CLI...
   [OK] MCP registrado com sucesso.
 
 === Instalação concluída! ===
@@ -412,19 +466,46 @@ Edite o arquivo `~/.claude.json` e adicione:
 - O campo `"env": {}` é obrigatório mesmo vazio — as variáveis de ambiente são carregadas pelo script `start.ps1` / `start.sh` a partir do `.env`
 - Após editar, reinicie o Claude Code
 
+### Registro manual no Codex CLI
+
+Edite o arquivo `~/.codex/config.toml` (Windows: `C:\Users\<usuario>\.codex\config.toml`) e adicione a seção:
+
+**Windows:**
+```toml
+[mcp_servers.sankhya-schema]
+command = "pwsh"
+args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "C:/CAMINHO_COMPLETO/sankhya-schema-mcp/start.ps1"]
+```
+
+**Linux:**
+```toml
+[mcp_servers.sankhya-schema]
+command = "bash"
+args = ["/CAMINHO_COMPLETO/sankhya-schema-mcp/start.sh"]
+```
+
+> Substitua `CAMINHO_COMPLETO` pelo caminho real onde você clonou o projeto. No Windows, use barras normais (`/`) ou strings literais com aspas simples para evitar problemas de escape no TOML.
+> Se a variável de ambiente `CODEX_HOME` estiver definida, o arquivo fica em `$CODEX_HOME/config.toml`.
+
 ---
 
 ## Verificação da instalação
 
 ### 1. Verificar registro do MCP
 
-No Claude Code, execute:
+**Claude Code** — execute:
 
 ```
 /mcp
 ```
 
-Deve aparecer `sankhya-schema` com status **connected** e as seguintes tools:
+**Codex CLI** — execute no terminal:
+
+```bash
+codex mcp list
+```
+
+No Claude Code deve aparecer `sankhya-schema` com status **connected**; no Codex, o servidor deve constar na lista. Tools disponíveis:
 
 - `describe_table`
 - `search_tables`
@@ -486,10 +567,12 @@ Reinicie o Claude Code após a atualização.
 
 ### 1. Remover registro do MCP
 
-Edite o arquivo de configuração do Claude Code e remova a entrada `sankhya-schema` de `mcpServers`:
+**Claude Code** — edite o arquivo de configuração e remova a entrada `sankhya-schema` de `mcpServers`:
 
-- **Windows:** `C:\Users\<usuario>\.claude\.claude.json`
+- **Windows:** `C:\Users\<usuario>\.claude.json`
 - **Linux:** `~/.claude.json`
+
+**Codex CLI** — edite `~/.codex/config.toml` e remova a seção `[mcp_servers.sankhya-schema]` (a linha do cabeçalho e as linhas `command`/`args` abaixo dela).
 
 ### 2. Remover arquivos do projeto
 

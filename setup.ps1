@@ -1,5 +1,6 @@
 param(
-    [string]$ConfigDir
+    [string]$ConfigDir,
+    [string]$Cli
 )
 
 # URL do repositorio e do instantclient no GitHub Releases
@@ -10,19 +11,53 @@ Write-Host "=== Setup Sankhya Schema MCP ===" -ForegroundColor Cyan
 Write-Host ""
 
 # ---------------------------------------------------------------------------
+# Selecao de CLIs para registro do MCP
+# - Com -Cli claude|codex|both: usa o valor informado (nao interativo)
+# - Sem -Cli: exibe menu interativo (default: Claude Code)
+# ---------------------------------------------------------------------------
+if ([string]::IsNullOrWhiteSpace($Cli)) {
+    Write-Host "Em quais CLIs deseja registrar o MCP?" -ForegroundColor Cyan
+    Write-Host "  [1] Claude Code"
+    Write-Host "  [2] Codex CLI"
+    Write-Host "  [3] Ambos"
+    $cliChoice = Read-Host "Escolha [Enter para 1]"
+    switch ($cliChoice.Trim()) {
+        ""  { $Cli = "claude" }
+        "1" { $Cli = "claude" }
+        "2" { $Cli = "codex" }
+        "3" { $Cli = "both" }
+        default {
+            Write-Error "Opcao invalida: '$cliChoice'. Use 1, 2 ou 3."
+            exit 1
+        }
+    }
+} else {
+    $Cli = $Cli.Trim().ToLower()
+    if ($Cli -notin @("claude", "codex", "both")) {
+        Write-Error "Valor invalido para -Cli: '$Cli'. Use claude, codex ou both."
+        exit 1
+    }
+}
+
+$InstallClaude = $Cli -in @("claude", "both")
+$InstallCodex  = $Cli -in @("codex", "both")
+
+# ---------------------------------------------------------------------------
 # Resolver caminhos de configuracao do Claude Code
 # - Sem --config-dir: usa default ($HOME\.claude.json + $HOME\.claude\settings.json)
 # - Com --config-dir: ambos arquivos ficam dentro do diretorio informado
 # ---------------------------------------------------------------------------
-if ([string]::IsNullOrWhiteSpace($ConfigDir)) {
-    $ClaudeJson   = Join-Path $env:USERPROFILE ".claude.json"
-    $SettingsJson = Join-Path $env:USERPROFILE ".claude\settings.json"
-    Write-Host "[INFO] Usando configuracao padrao do Claude Code." -ForegroundColor DarkGray
-} else {
-    $ConfigDir    = $ConfigDir.Trim()
-    $ClaudeJson   = Join-Path $ConfigDir ".claude.json"
-    $SettingsJson = Join-Path $ConfigDir "settings.json"
-    Write-Host "[INFO] Usando diretorio de configuracao: $ConfigDir" -ForegroundColor DarkGray
+if ($InstallClaude) {
+    if ([string]::IsNullOrWhiteSpace($ConfigDir)) {
+        $ClaudeJson   = Join-Path $env:USERPROFILE ".claude.json"
+        $SettingsJson = Join-Path $env:USERPROFILE ".claude\settings.json"
+        Write-Host "[INFO] Usando configuracao padrao do Claude Code." -ForegroundColor DarkGray
+    } else {
+        $ConfigDir    = $ConfigDir.Trim()
+        $ClaudeJson   = Join-Path $ConfigDir ".claude.json"
+        $SettingsJson = Join-Path $ConfigDir "settings.json"
+        Write-Host "[INFO] Usando diretorio de configuracao: $ConfigDir" -ForegroundColor DarkGray
+    }
 }
 
 # ---------------------------------------------------------------------------
@@ -57,7 +92,7 @@ if ($HasProjectFiles) {
     if ((Resolve-Path $PSCommandPath).Path -ne (Resolve-Path $clonedSetup -ErrorAction SilentlyContinue)?.Path) {
         Write-Host ""
         Write-Host "Continuando setup a partir do projeto clonado..." -ForegroundColor Cyan
-        $invokeArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $clonedSetup)
+        $invokeArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $clonedSetup, "-Cli", $Cli)
         if (-not [string]::IsNullOrWhiteSpace($ConfigDir)) {
             $invokeArgs += @("-ConfigDir", $ConfigDir)
         }
@@ -123,12 +158,15 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "[OK] Dependencias instaladas." -ForegroundColor Green
 
+$StartScript = Join-Path $ProjectRoot "start.ps1"
+
 # ---------------------------------------------------------------------------
 # 4. Registrar MCP no Claude Code
 # ---------------------------------------------------------------------------
+if ($InstallClaude) {
+
 Write-Host "[4/5] Registrando MCP no Claude Code..." -ForegroundColor Yellow
 
-$StartScript = Join-Path $ProjectRoot "start.ps1"
 $McpEntry = [PSCustomObject]@{
     type    = "stdio"
     command = "pwsh"
@@ -200,7 +238,60 @@ if (-not (Test-Path $SettingsJson)) {
     }
 }
 
+} # fim if ($InstallClaude)
+
+# ---------------------------------------------------------------------------
+# 6. Registrar MCP no Codex CLI
+# - Config: $CODEX_HOME/config.toml (default: ~/.codex/config.toml)
+# - Codex nao tem allow-list por tool; aprovacao segue a approval policy global
+# ---------------------------------------------------------------------------
+if ($InstallCodex) {
+    Write-Host "[Codex] Registrando MCP no Codex CLI..." -ForegroundColor Yellow
+
+    $CodexHome = if ([string]::IsNullOrWhiteSpace($env:CODEX_HOME)) {
+        Join-Path $env:USERPROFILE ".codex"
+    } else {
+        $env:CODEX_HOME
+    }
+    $CodexConfig = Join-Path $CodexHome "config.toml"
+
+    # TOML: usar barras normais evita escape de backslash em strings basicas
+    $StartScriptToml = $StartScript -replace '\\', '/'
+
+    if ((Test-Path $CodexConfig) -and
+        (Select-String -Path $CodexConfig -Pattern '^\s*\[mcp_servers\.sankhya-schema\]' -Quiet)) {
+        Write-Host "  [OK] MCP ja registrado em $CodexConfig." -ForegroundColor Green
+    } else {
+        if (-not (Test-Path $CodexHome)) {
+            New-Item -ItemType Directory -Path $CodexHome -Force | Out-Null
+        }
+
+        # Garantir newline final no arquivo existente antes do append
+        if (Test-Path $CodexConfig) {
+            $codexRaw = Get-Content $CodexConfig -Raw
+            if ($codexRaw -and -not $codexRaw.EndsWith("`n")) {
+                Add-Content -Path $CodexConfig -Value "" -Encoding UTF8
+            }
+        }
+
+        $codexEntry = @"
+
+[mcp_servers.sankhya-schema]
+command = "pwsh"
+args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "$StartScriptToml"]
+"@
+
+        Add-Content -Path $CodexConfig -Value $codexEntry -Encoding UTF8
+        Write-Host "  [OK] MCP registrado em $CodexConfig." -ForegroundColor Green
+    }
+}
+
 Write-Host ""
 Write-Host "=== Instalacao concluida! ===" -ForegroundColor Cyan
-Write-Host "Proximo passo: edite as credenciais em start.ps1, reinicie o Claude Code e rode /mcp para confirmar."
-Write-Host "As tools do MCP foram liberadas automaticamente — nao sera necessario aprovar permissoes manualmente."
+Write-Host "Proximo passo: edite as credenciais em .env (use .env.example como modelo)."
+if ($InstallClaude) {
+    Write-Host "Claude Code: reinicie e rode /mcp para confirmar. As tools foram liberadas automaticamente."
+}
+if ($InstallCodex) {
+    Write-Host "Codex CLI: reinicie e rode 'codex mcp list' para confirmar. Aprove as tools na primeira chamada ou ajuste a approval policy."
+}

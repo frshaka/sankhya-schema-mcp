@@ -1,6 +1,6 @@
 # Sankhya Schema MCP
 
-Servidor MCP (Model Context Protocol) que conecta o Claude Code ao banco Oracle do Sankhya ERP, permitindo explorar tabelas, campos, índices, relacionamentos e executar queries SQL diretamente durante uma conversa.
+Servidor MCP (Model Context Protocol) que conecta o Claude Code e/ou o Codex CLI ao banco Oracle do Sankhya ERP, permitindo explorar tabelas, campos, índices, relacionamentos e executar queries SQL diretamente durante uma conversa.
 
 O servidor opera em modo **thick** via Oracle Instant Client 21c, garantindo compatibilidade com bancos Oracle 11.2 em diante.
 
@@ -29,7 +29,7 @@ O servidor opera em modo **thick** via Oracle Instant Client 21c, garantindo com
 |-----------|---------------|----------------|
 | Python | 3.10+ | `python --version` |
 | Git | qualquer | `git --version` |
-| Claude Code | qualquer | `claude --version` |
+| Claude Code e/ou Codex CLI | qualquer | `claude --version` / `codex --version` |
 | Banco Oracle | 11.2+ | Acesso via host:porta/service |
 
 **Windows adicional:** PowerShell 7+ (`pwsh`) — [Instalar aqui](https://aka.ms/powershell)
@@ -61,12 +61,25 @@ bash setup.sh
 ```
 
 O script de setup executa automaticamente:
-1. Download e extração do Oracle Instant Client 21c (do GitHub Releases)
-2. Criação do ambiente virtual Python (`.venv/`)
-3. Instalação das dependências (`mcp`, `oracledb`, `python-dotenv`)
-4. Registro do servidor MCP no Claude Code (`~/.claude.json`)
+1. Menu de seleção dos CLIs onde registrar o MCP (Claude Code, Codex CLI ou ambos — default: Claude Code)
+2. Download e extração do Oracle Instant Client 21c (do GitHub Releases)
+3. Criação do ambiente virtual Python (`.venv/`)
+4. Instalação das dependências (`mcp`, `oracledb`, `python-dotenv`)
+5. Registro do servidor MCP nos CLIs escolhidos (Claude Code: `~/.claude.json` / Codex: `~/.codex/config.toml`)
 
-Após o setup, configure as credenciais do banco no arquivo `.env` e reinicie o Claude Code.
+Para pular o menu (automação), use a flag de CLI:
+
+```powershell
+# Windows
+pwsh -File setup.ps1 -Cli both     # claude | codex | both
+```
+
+```bash
+# Linux
+bash setup.sh --cli both           # claude | codex | both
+```
+
+Após o setup, configure as credenciais do banco no arquivo `.env` e reinicie o CLI escolhido.
 
 Veja **[INSTALACAO.md](INSTALACAO.md)** para o guia completo passo a passo, configuração de credenciais e solução de problemas.
 
@@ -113,13 +126,21 @@ SANKHYA_DB_PASSWORD=senha_do_projeto
 
 ## Verificação
 
-Reinicie o Claude Code e execute:
+**Claude Code** — reinicie e execute:
 
 ```
 /mcp
 ```
 
 O servidor `sankhya-schema` deve aparecer com status **connected**.
+
+**Codex CLI** — reinicie e execute no terminal:
+
+```bash
+codex mcp list
+```
+
+O servidor `sankhya-schema` deve aparecer na lista. Na primeira chamada de tool, aprove quando solicitado (ou ajuste a `approval_policy` no `~/.codex/config.toml`).
 
 ---
 

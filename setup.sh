@@ -7,10 +7,12 @@ set -e
 
 # ---------------------------------------------------------------------------
 # Parse argumentos
-#   --config-dir <path>   Diretório onde gravar .claude.json e settings.json
-#                         (default: $HOME/.claude.json + $HOME/.claude/settings.json)
+#   --config-dir <path>      Diretório onde gravar .claude.json e settings.json
+#                            (default: $HOME/.claude.json + $HOME/.claude/settings.json)
+#   --cli claude|codex|both  CLIs onde registrar o MCP (sem flag: menu interativo)
 # ---------------------------------------------------------------------------
 CONFIG_DIR=""
+CLI=""
 EXTRA_ARGS=()
 
 while [ $# -gt 0 ]; do
@@ -23,6 +25,14 @@ while [ $# -gt 0 ]; do
             CONFIG_DIR="${1#*=}"
             shift
             ;;
+        --cli)
+            CLI="$2"
+            shift 2
+            ;;
+        --cli=*)
+            CLI="${1#*=}"
+            shift
+            ;;
         *)
             EXTRA_ARGS+=("$1")
             shift
@@ -30,18 +40,60 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-if [ -n "$CONFIG_DIR" ]; then
-    CLAUDE_JSON="$CONFIG_DIR/.claude.json"
-    SETTINGS_JSON="$CONFIG_DIR/settings.json"
-    echo "[INFO] Usando diretório de configuração: $CONFIG_DIR"
-else
-    CLAUDE_JSON="$HOME/.claude.json"
-    SETTINGS_JSON="$HOME/.claude/settings.json"
-    echo "[INFO] Usando configuração padrão do Claude Code."
-fi
-
 echo "=== Setup Sankhya Schema MCP ==="
 echo ""
+
+# ---------------------------------------------------------------------------
+# Seleção de CLIs para registro do MCP
+# - Com --cli claude|codex|both: usa o valor informado (não interativo)
+# - Sem --cli: exibe menu interativo (default: Claude Code)
+# ---------------------------------------------------------------------------
+if [ -z "$CLI" ]; then
+    echo "Em quais CLIs deseja registrar o MCP?"
+    echo "  [1] Claude Code"
+    echo "  [2] Codex CLI"
+    echo "  [3] Ambos"
+    read -rp "Escolha [Enter para 1]: " CLI_CHOICE
+    case "$CLI_CHOICE" in
+        ""|"1") CLI="claude" ;;
+        "2")    CLI="codex" ;;
+        "3")    CLI="both" ;;
+        *)
+            echo "[ERRO] Opção inválida: '$CLI_CHOICE'. Use 1, 2 ou 3."
+            exit 1
+            ;;
+    esac
+else
+    CLI=$(echo "$CLI" | tr '[:upper:]' '[:lower:]')
+    case "$CLI" in
+        claude|codex|both) ;;
+        *)
+            echo "[ERRO] Valor inválido para --cli: '$CLI'. Use claude, codex ou both."
+            exit 1
+            ;;
+    esac
+fi
+
+INSTALL_CLAUDE=0
+INSTALL_CODEX=0
+case "$CLI" in
+    claude|both) INSTALL_CLAUDE=1 ;;
+esac
+case "$CLI" in
+    codex|both) INSTALL_CODEX=1 ;;
+esac
+
+if [ "$INSTALL_CLAUDE" = "1" ]; then
+    if [ -n "$CONFIG_DIR" ]; then
+        CLAUDE_JSON="$CONFIG_DIR/.claude.json"
+        SETTINGS_JSON="$CONFIG_DIR/settings.json"
+        echo "[INFO] Usando diretório de configuração: $CONFIG_DIR"
+    else
+        CLAUDE_JSON="$HOME/.claude.json"
+        SETTINGS_JSON="$HOME/.claude/settings.json"
+        echo "[INFO] Usando configuração padrão do Claude Code."
+    fi
+fi
 
 # ---------------------------------------------------------------------------
 # Determinar raiz do projeto
@@ -71,9 +123,9 @@ else
         echo ""
         echo "Continuando setup a partir do projeto clonado..."
         if [ -n "$CONFIG_DIR" ]; then
-            bash "$CLONED_SETUP" --config-dir "$CONFIG_DIR"
+            bash "$CLONED_SETUP" --config-dir "$CONFIG_DIR" --cli "$CLI"
         else
-            bash "$CLONED_SETUP"
+            bash "$CLONED_SETUP" --cli "$CLI"
         fi
         exit $?
     fi
@@ -173,6 +225,8 @@ chmod +x "$START_SCRIPT"
 # ---------------------------------------------------------------------------
 # 5. Registrar MCP no Claude Code
 # ---------------------------------------------------------------------------
+if [ "$INSTALL_CLAUDE" = "1" ]; then
+
 echo "[4/5] Registrando MCP no Claude Code..."
 
 python3 - <<PYEOF
@@ -249,7 +303,43 @@ if changed:
     print(f"  [OK] Permissões configuradas em {settings_json}.")
 PYEOF
 
+fi # fim INSTALL_CLAUDE
+
+# ---------------------------------------------------------------------------
+# 7. Registrar MCP no Codex CLI
+# - Config: $CODEX_HOME/config.toml (default: ~/.codex/config.toml)
+# - Codex não tem allow-list por tool; aprovação segue a approval policy global
+# ---------------------------------------------------------------------------
+if [ "$INSTALL_CODEX" = "1" ]; then
+    echo "[Codex] Registrando MCP no Codex CLI..."
+
+    CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codex}"
+    CODEX_CONFIG="$CODEX_HOME_DIR/config.toml"
+
+    if [ -f "$CODEX_CONFIG" ] && grep -Eq '^[[:space:]]*\[mcp_servers\.sankhya-schema\]' "$CODEX_CONFIG"; then
+        echo "  [OK] MCP já registrado em $CODEX_CONFIG."
+    else
+        mkdir -p "$CODEX_HOME_DIR"
+        # Garantir newline final no arquivo existente antes do append
+        if [ -s "$CODEX_CONFIG" ] && [ -n "$(tail -c 1 "$CODEX_CONFIG")" ]; then
+            echo "" >> "$CODEX_CONFIG"
+        fi
+        cat >> "$CODEX_CONFIG" <<EOF
+
+[mcp_servers.sankhya-schema]
+command = "bash"
+args = ["$START_SCRIPT"]
+EOF
+        echo "  [OK] MCP registrado em $CODEX_CONFIG."
+    fi
+fi
+
 echo ""
 echo "=== Instalação concluída! ==="
-echo "Próximo passo: edite as credenciais em start.sh, reinicie o Claude Code e rode /mcp para confirmar."
-echo "As tools do MCP foram liberadas automaticamente — não será necessário aprovar permissões manualmente."
+echo "Próximo passo: edite as credenciais em .env (use .env.example como modelo)."
+if [ "$INSTALL_CLAUDE" = "1" ]; then
+    echo "Claude Code: reinicie e rode /mcp para confirmar. As tools foram liberadas automaticamente."
+fi
+if [ "$INSTALL_CODEX" = "1" ]; then
+    echo "Codex CLI: reinicie e rode 'codex mcp list' para confirmar. Aprove as tools na primeira chamada ou ajuste a approval policy."
+fi
