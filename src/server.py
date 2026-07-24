@@ -107,11 +107,20 @@ def rows_to_markdown(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def _is_missing_object(exc: oracledb.DatabaseError) -> bool:
+    """True se o erro for ORA-00942 (tabela/view inexistente ou sem acesso)."""
+    return "ORA-00942" in str(exc)
+
+
 def resolve_table_name(name: str) -> tuple[str, list[dict]]:
     """
     Resolve EntityName (NOMEINSTANCIA) para nome de tabela Oracle via TDDINS.
     Retorna (table_name, entity_rows).
     Se não encontrar em TDDINS, devolve o nome original em maiúsculas e lista vazia.
+
+    Enriquecimento opcional: quando o dicionário Sankhya (TDDINS) não existe no
+    schema conectado (ORA-00942), degrada silenciosamente e devolve o nome cru,
+    para não inviabilizar quem só quer descrever colunas de uma tabela Oracle.
     """
     sql = """
         SELECT NOMETAB, NOMEINSTANCIA, DESCRINSTANCIA, RAIZ, NUINSTANCIAPAI
@@ -120,7 +129,12 @@ def resolve_table_name(name: str) -> tuple[str, list[dict]]:
           AND ATIVO = 'S'
         ORDER BY RAIZ DESC, NUINSTANCIA
     """
-    rows = execute_query(sql, [name])
+    try:
+        rows = execute_query(sql, [name])
+    except oracledb.DatabaseError as exc:
+        if _is_missing_object(exc):
+            return name.upper(), []
+        raise
     if rows:
         return rows[0]["nometab"], rows
     return name.upper(), []
@@ -243,7 +257,12 @@ def describe_table(table_name: str) -> str:
           AND ATIVO = 'S'
         ORDER BY RAIZ DESC, NOMEINSTANCIA
     """
-    inst_rows = execute_query(inst_sql, [resolved])
+    try:
+        inst_rows = execute_query(inst_sql, [resolved])
+    except oracledb.DatabaseError as exc:
+        if not _is_missing_object(exc):
+            raise
+        inst_rows = []  # dicionário Sankhya ausente: segue só com as colunas
     if inst_rows:
         result += f"\n\n## Instâncias (EntityNames) — {resolved}\n\n{rows_to_markdown(inst_rows)}"
 
