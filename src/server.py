@@ -72,9 +72,27 @@ def get_pool() -> oracledb.ConnectionPool:
     return _pool
 
 
-def execute_query(sql: str, params: list = None, limit: int = 200) -> list[dict]:
+# Teto para buscas abertas (search_*), cujo resultado cresce com o schema inteiro
+# e não com uma tabela específica. Metadados de uma única tabela usam limit=None.
+DEFAULT_ROW_LIMIT = 200
+# Identifica os planos gerados por este servidor dentro da PLAN_TABLE.
+PLAN_STATEMENT_ID = "SANKHYA_MCP"
+
+
+def fetch_rows(
+    sql: str, params: list = None, limit: Optional[int] = DEFAULT_ROW_LIMIT
+) -> tuple[list[dict], bool]:
     """
-    Executa uma query e retorna lista de dicionários.
+    Executa uma query e retorna (linhas, truncado).
+
+    Com `limit` numérico, busca `limit + 1` linhas para descobrir se o resultado foi
+    cortado sem precisar de um COUNT extra: `truncado` é True quando há mais linhas
+    no banco.
+
+    Com `limit=None` não há teto — o resultado vem inteiro e `truncado` é sempre
+    False. É o modo usado pelas consultas de metadados de uma única tabela
+    (colunas, índices, FKs), onde o volume é limitado pela própria tabela e um
+    corte esconderia parte do schema.
 
     A sessão é forçada a READ ONLY antes da execução: qualquer DML/DDL que
     porventura escape da validação de aplicação é bloqueado pelo próprio Oracle
@@ -87,11 +105,33 @@ def execute_query(sql: str, params: list = None, limit: int = 200) -> list[dict]
             cur.execute("SET TRANSACTION READ ONLY")
             cur.execute(sql, params or [])
             columns = [col[0].lower() for col in cur.description]
-            rows = cur.fetchmany(limit)
+            if limit is None:
+                rows, truncated = cur.fetchall(), False
+            else:
+                rows = cur.fetchmany(limit + 1)
+                truncated = len(rows) > limit
+                rows = rows[:limit]
             result = [dict(zip(columns, row)) for row in rows]
         # Encerra a transação somente leitura antes de devolver a conexão ao pool
         conn.rollback()
-        return result
+        return result, truncated
+
+
+def execute_query(
+    sql: str, params: list = None, limit: Optional[int] = DEFAULT_ROW_LIMIT
+) -> list[dict]:
+    """Atalho para `fetch_rows` quando o aviso de truncamento não é necessário."""
+    return fetch_rows(sql, params, limit)[0]
+
+
+def truncation_note(truncated: bool, limit: int) -> str:
+    """
+    Aviso explícito de corte. Resultado truncado em silêncio é pior que resultado
+    vazio: o consumidor conclui que os dados faltantes não existem.
+    """
+    if not truncated:
+        return ""
+    return f"\n\n> ⚠️ Resultado truncado em {limit} linha(s). Refine a busca para ver o restante."
 
 
 def rows_to_markdown(rows: list[dict]) -> str:
@@ -130,7 +170,7 @@ def resolve_table_name(name: str) -> tuple[str, list[dict]]:
         ORDER BY RAIZ DESC, NUINSTANCIA
     """
     try:
-        rows = execute_query(sql, [name])
+        rows = execute_query(sql, [name], limit=None)
     except oracledb.DatabaseError as exc:
         if _is_missing_object(exc):
             return name.upper(), []
@@ -169,6 +209,23 @@ def assert_read_only_query(sql: str) -> Optional[str]:
     return None
 
 
+_IDENTIFIER_RE = re.compile(r"^[A-Z0-9_$#]+(\.[A-Z0-9_$#]+)?$")
+
+
+def assert_safe_identifier(name: str) -> Optional[str]:
+    """
+    Valida um nome de tabela antes de interpolá-lo em SQL.
+    Retorna a mensagem de erro se reprovar, ou None se aprovar.
+
+    Necessário porque `resolve_table_name` devolve o texto informado pelo usuário
+    (em maiúsculas) quando o dicionário Sankhya não resolve o nome — ou seja, o
+    valor não pode ser tratado como confiável.
+    """
+    if not _IDENTIFIER_RE.match(name or ""):
+        return f"Nome de tabela inválido: `{name}`."
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Servidor MCP
 # ---------------------------------------------------------------------------
@@ -189,8 +246,8 @@ mcp = FastMCP(
         "3. Com o schema real em mãos → escreva a query\n"
         "4. NUNCA pule os passos 1 e 2. NUNCA invente nomes de tabelas ou colunas.\n\n"
         "PROIBIÇÕES:\n"
-        "- NUNCA delegue tarefas que dependem deste MCP para subagents (Agent tool). "
-        "Subagents não têm acesso a tools MCP. Resolva tudo no agente principal.\n"
+        "- Só delegue tarefas que dependem deste MCP para subagents cuja definição inclua "
+        "as tools `mcp__sankhya-schema__*`. Na dúvida, resolva no agente principal.\n"
         "- NUNCA tente conexão direta ao banco Oracle.\n"
         "- NUNCA invente, chute ou assuma credenciais.\n"
         "- NUNCA use listMcpResources para tentar acessar este servidor. Use as tools diretamente: "
@@ -235,7 +292,8 @@ def describe_table(table_name: str) -> str:
           AND c.OWNER NOT IN ('SYS','SYSTEM','DBSNMP','OUTLN')
         ORDER BY c.COLUMN_ID
     """
-    rows = execute_query(sql, [resolved])
+    # limit=None: toda coluna da tabela precisa aparecer, sem exceção.
+    rows = execute_query(sql, [resolved], limit=None)
     if not rows:
         return f"Tabela `{resolved}` não encontrada ou sem colunas."
 
@@ -244,7 +302,7 @@ def describe_table(table_name: str) -> str:
         e = entity_rows[0]
         header += f"\n**EntityName:** `{e['nomeinstancia']}` — {e['descrinstancia']}"
 
-    result = f"{header}\n\n{rows_to_markdown(rows)}"
+    result = f"{header}\n\n{rows_to_markdown(rows)}\n\n_{len(rows)} coluna(s)._"
 
     inst_sql = """
         SELECT
@@ -258,7 +316,7 @@ def describe_table(table_name: str) -> str:
         ORDER BY RAIZ DESC, NOMEINSTANCIA
     """
     try:
-        inst_rows = execute_query(inst_sql, [resolved])
+        inst_rows = execute_query(inst_sql, [resolved], limit=None)
     except oracledb.DatabaseError as exc:
         if not _is_missing_object(exc):
             raise
@@ -293,8 +351,8 @@ def search_tables(keyword: str) -> str:
           AND t.OWNER NOT IN ('SYS','SYSTEM','DBSNMP','OUTLN')
         ORDER BY t.TABLE_NAME
     """
-    rows = execute_query(sql, [f"%{keyword.upper()}%"])
-    return rows_to_markdown(rows)
+    rows, truncated = fetch_rows(sql, [f"%{keyword.upper()}%"])
+    return rows_to_markdown(rows) + truncation_note(truncated, DEFAULT_ROW_LIMIT)
 
 
 @mcp.tool()
@@ -308,7 +366,7 @@ def search_columns(column_keyword: str, table_keyword: str = "") -> str:
       search_columns("CODPARC", "TGF")    → apenas em tabelas TGF*
       search_columns("DTFATUR")           → onde está o campo de faturamento
     """
-    table_filter = f"AND c.TABLE_NAME LIKE :2" if table_keyword else ""
+    table_filter = "AND c.TABLE_NAME LIKE :2" if table_keyword else ""
     sql = f"""
         SELECT
             c.TABLE_NAME,
@@ -329,8 +387,8 @@ def search_columns(column_keyword: str, table_keyword: str = "") -> str:
     params = [f"%{column_keyword.upper()}%"]
     if table_keyword:
         params.append(f"{table_keyword.upper()}%")
-    rows = execute_query(sql, params)
-    return rows_to_markdown(rows)
+    rows, truncated = fetch_rows(sql, params)
+    return rows_to_markdown(rows) + truncation_note(truncated, DEFAULT_ROW_LIMIT)
 
 
 @mcp.tool()
@@ -362,7 +420,7 @@ def get_foreign_keys(table_name: str) -> str:
           AND a.TABLE_NAME = :1
         ORDER BY a.CONSTRAINT_NAME, a.POSITION
     """
-    rows = execute_query(sql, [resolved])
+    rows = execute_query(sql, [resolved], limit=None)
     if not rows:
         return f"Nenhuma FK encontrada para `{resolved}`."
     return f"## Foreign Keys — {resolved}\n\n{rows_to_markdown(rows)}"
@@ -395,7 +453,7 @@ def get_indexes(table_name: str) -> str:
           AND i.OWNER NOT IN ('SYS','SYSTEM')
         ORDER BY i.INDEX_NAME, ic.COLUMN_POSITION
     """
-    rows = execute_query(sql, [resolved])
+    rows = execute_query(sql, [resolved], limit=None)
     if not rows:
         return f"Nenhum índice encontrado para `{resolved}`."
     return f"## Índices — {resolved}\n\n{rows_to_markdown(rows)}"
@@ -417,12 +475,13 @@ def run_query(sql: str, limit: int = 50) -> str:
         return f"❌ {erro}"
 
     try:
-        rows = execute_query(sql, limit=limit)
+        rows, truncated = fetch_rows(sql, limit=limit)
         if not rows:
             return "_Query executada sem retorno de linhas._"
         total = len(rows)
         result = rows_to_markdown(rows)
-        suffix = f"\n\n_Exibindo {total} linha(s). Use `limit` para ajustar._"
+        restante = " Há mais linhas no banco." if truncated else ""
+        suffix = f"\n\n_Exibindo {total} linha(s). Use `limit` para ajustar.{restante}_"
         return result + suffix
     except Exception as e:
         return f"❌ Erro ao executar query:\n```\n{str(e)}\n```"
@@ -437,15 +496,27 @@ def validate_query(sql: str) -> str:
 
     Exemplo: validate_query("SELECT NUNOTA, CODPARC FROM TGFCAB WHERE CODTIPOPER = 1")
     """
+    erro = assert_read_only_query(sql)
+    if erro:
+        return f"❌ {erro}"
+
     try:
+        # Sem SET TRANSACTION READ ONLY aqui: o próprio EXPLAIN PLAN grava na
+        # PLAN_TABLE e seria bloqueado com ORA-01456. O rollback ao final desfaz
+        # tudo, e a allowlist acima já garante que `sql` é somente leitura.
         with get_pool().acquire() as conn:
             with conn.cursor() as cur:
-                cur.execute(f"EXPLAIN PLAN FOR {sql}")
+                # STATEMENT_ID isola o plano desta chamada. Quando a PLAN_TABLE é
+                # permanente (criada via utlxplan.sql) e compartilhada entre usuários,
+                # um SELECT sem filtro traria também o plano dos outros.
+                # A limpeza das linhas fica por conta do rollback ao final.
+                cur.execute(f"EXPLAIN PLAN SET STATEMENT_ID = '{PLAN_STATEMENT_ID}' FOR {sql}")
                 cur.execute("""
                     SELECT OPERATION, OPTIONS, OBJECT_NAME, COST, CARDINALITY
                     FROM PLAN_TABLE
+                    WHERE STATEMENT_ID = :1
                     ORDER BY ID
-                """)
+                """, [PLAN_STATEMENT_ID])
                 columns = [col[0].lower() for col in cur.description]
                 rows = [dict(zip(columns, row)) for row in cur.fetchall()]
             conn.rollback()
@@ -469,9 +540,13 @@ def table_sample(table_name: str, limit: int = 10) -> str:
       table_sample("TipoOperacao", limit=5)
     """
     resolved, _ = resolve_table_name(table_name)
+    erro = assert_safe_identifier(resolved)
+    if erro:
+        return f"❌ {erro}"
+
     try:
         sql = f"SELECT * FROM {resolved} WHERE ROWNUM <= :1"
-        rows = execute_query(sql, [limit])
+        rows = execute_query(sql, [limit], limit=limit)
         if not rows:
             return f"Tabela `{resolved}` está vazia ou não existe."
         return f"## Amostra — {resolved} ({len(rows)} linha(s))\n\n{rows_to_markdown(rows)}"
@@ -512,10 +587,11 @@ def search_entities(keyword: str, only_root: bool = False) -> str:
           {root_filter}
         ORDER BY RAIZ DESC, NOMETAB, NOMEINSTANCIA
     """
-    rows = execute_query(sql, [f"%{keyword}%"])
+    rows, truncated = fetch_rows(sql, [f"%{keyword}%"])
     if not rows:
         return f"_Nenhuma entidade encontrada para `{keyword}`._"
-    return f"## Entidades — '{keyword}'\n\n{rows_to_markdown(rows)}"
+    note = truncation_note(truncated, DEFAULT_ROW_LIMIT)
+    return f"## Entidades — '{keyword}'\n\n{rows_to_markdown(rows)}{note}"
 
 
 @mcp.tool()
@@ -537,7 +613,7 @@ def list_modules() -> str:
         HAVING COUNT(*) > 1
         ORDER BY qtd_tabelas DESC
     """
-    rows = execute_query(sql)
+    rows = execute_query(sql, limit=None)
     return f"## Módulos do Schema Sankhya\n\n{rows_to_markdown(rows)}"
 
 

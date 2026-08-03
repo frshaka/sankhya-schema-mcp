@@ -391,7 +391,7 @@ SANKHYA_DB_PASSWORD=consultar_dba
 
 O `.env` na raiz do projeto MCP é a configuração **geral**, usada por padrão em qualquer projeto onde o Claude Code é aberto. Quando um projeto específico precisa apontar para outro banco, crie um arquivo **`.sankhya-mcp.env`** na raiz desse projeto.
 
-**Como funciona:** o `start.ps1` carrega os arquivos nesta ordem na inicialização do MCP:
+**Como funciona:** o `start.ps1` (Windows) e o `start.sh` (Linux/macOS) carregam os arquivos nesta ordem na inicialização do MCP:
 
 1. `.env` geral (diretório do MCP) — base/defaults;
 2. `.sankhya-mcp.env` do projeto (diretório de trabalho atual) — sobrescreve o que for redefinido.
