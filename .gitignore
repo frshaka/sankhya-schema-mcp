@@ -6,6 +6,7 @@ __pycache__/
 
 # Credenciais — nunca subir
 .env
+*.env
 
 # Arquivos locais do Claude Code
 .claude/
