@@ -98,6 +98,11 @@ def fetch_rows(
     porventura escape da validação de aplicação é bloqueado pelo próprio Oracle
     (ORA-01456). É a segunda camada de proteção contra escrita.
     """
+    # `limit` chega do cliente MCP sem validação: 0 devolveria lista vazia com
+    # truncado=True (resultado com linhas anunciado como vazio) e um negativo
+    # cortaria o fim do resultado em `rows[:limit]`.
+    if limit is not None:
+        limit = max(1, limit)
     with get_pool().acquire() as conn:
         # Garante início de transação limpo antes de marcá-la como somente leitura
         conn.rollback()
@@ -124,7 +129,7 @@ def execute_query(
     return fetch_rows(sql, params, limit)[0]
 
 
-def truncation_note(truncated: bool, limit: int) -> str:
+def truncation_note(truncated: bool, limit: int = DEFAULT_ROW_LIMIT) -> str:
     """
     Aviso explícito de corte. Resultado truncado em silêncio é pior que resultado
     vazio: o consumidor conclui que os dados faltantes não existem.
@@ -142,7 +147,13 @@ def rows_to_markdown(rows: list[dict]) -> str:
     lines = ["| " + " | ".join(headers) + " |"]
     lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
     for row in rows:
-        cells = [str(row.get(h, "") or "") for h in headers]
+        # Só None vira célula vazia: 0, False e Decimal("0.00") são valores
+        # reais e virariam NULL aos olhos de quem lê a tabela. O `|` é escapado
+        # porque comentário de coluna do dicionário Sankhya pode conter um.
+        cells = [
+            "" if row.get(h) is None else str(row[h]).replace("|", "\\|")
+            for h in headers
+        ]
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)
 
@@ -176,7 +187,10 @@ def resolve_table_name(name: str) -> tuple[str, list[dict]]:
             return name.upper(), []
         raise
     if rows:
-        return rows[0]["nometab"], rows
+        # Oracle é case-insensitive sem aspas, mas `assert_safe_identifier` só
+        # aceita maiúsculas: sem o .upper() um NOMETAB minúsculo no TDDINS
+        # reprovaria uma tabela válida.
+        return rows[0]["nometab"].upper(), rows
     return name.upper(), []
 
 
@@ -352,7 +366,7 @@ def search_tables(keyword: str) -> str:
         ORDER BY t.TABLE_NAME
     """
     rows, truncated = fetch_rows(sql, [f"%{keyword.upper()}%"])
-    return rows_to_markdown(rows) + truncation_note(truncated, DEFAULT_ROW_LIMIT)
+    return rows_to_markdown(rows) + truncation_note(truncated)
 
 
 @mcp.tool()
@@ -388,7 +402,7 @@ def search_columns(column_keyword: str, table_keyword: str = "") -> str:
     if table_keyword:
         params.append(f"{table_keyword.upper()}%")
     rows, truncated = fetch_rows(sql, params)
-    return rows_to_markdown(rows) + truncation_note(truncated, DEFAULT_ROW_LIMIT)
+    return rows_to_markdown(rows) + truncation_note(truncated)
 
 
 @mcp.tool()
@@ -474,15 +488,13 @@ def run_query(sql: str, limit: int = 50) -> str:
     if erro:
         return f"❌ {erro}"
 
+    limit = max(1, limit)  # mesmo piso aplicado por fetch_rows, para o aviso não mentir
     try:
         rows, truncated = fetch_rows(sql, limit=limit)
         if not rows:
             return "_Query executada sem retorno de linhas._"
-        total = len(rows)
-        result = rows_to_markdown(rows)
-        restante = " Há mais linhas no banco." if truncated else ""
-        suffix = f"\n\n_Exibindo {total} linha(s). Use `limit` para ajustar.{restante}_"
-        return result + suffix
+        suffix = f"\n\n_Exibindo {len(rows)} linha(s). Use `limit` para ajustar._"
+        return rows_to_markdown(rows) + suffix + truncation_note(truncated, limit)
     except Exception as e:
         return f"❌ Erro ao executar query:\n```\n{str(e)}\n```"
 
@@ -590,7 +602,7 @@ def search_entities(keyword: str, only_root: bool = False) -> str:
     rows, truncated = fetch_rows(sql, [f"%{keyword}%"])
     if not rows:
         return f"_Nenhuma entidade encontrada para `{keyword}`._"
-    note = truncation_note(truncated, DEFAULT_ROW_LIMIT)
+    note = truncation_note(truncated)
     return f"## Entidades — '{keyword}'\n\n{rows_to_markdown(rows)}{note}"
 
 
