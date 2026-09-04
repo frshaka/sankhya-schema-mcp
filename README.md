@@ -172,6 +172,39 @@ Busque a entidade "Parceiro"
 - A validação é textual e não cobre tudo: uma função que já existe no schema com `PRAGMA AUTONOMOUS_TRANSACTION`, chamada em `SELECT pacote.funcao(x) FROM DUAL`, grava mesmo assim. Conecte sempre com um usuário Oracle sem privilégio de escrita — é a única defesa efetiva contra esse caso
 - A conexão é local — nenhum dado sai da máquina
 - Credenciais ficam no `.env` local, fora do controle de versão
+- Como o usuário recomendado é somente-leitura e normalmente **não** é o dono das tabelas, defina `SANKHYA_DB_SCHEMA` com o schema onde elas moram (ver abaixo) — sem isso, parte das tools responde `ORA-00942`
+
+---
+
+## Schema das tabelas (`SANKHYA_DB_SCHEMA`)
+
+Nomes de tabela sem qualificação são resolvidos pelo Oracle no schema do usuário conectado. Quando o login do MCP não é o dono das tabelas — o caso normal ao seguir a recomendação de usar um usuário somente-leitura — três tools param de funcionar:
+
+| Tool | Sintoma |
+|---|---|
+| `table_sample` | `ORA-00942: table or view does not exist` |
+| `search_entities` | falha ao ler `TDDINS` |
+| `describe_table`, `get_indexes`, `get_foreign_keys` | funcionam, mas **perdem** a tradução de EntityName (`describe_table("CabeçalhoNota")`) sem exibir erro |
+
+As demais tools leem as views de catálogo (`ALL_TAB_COLUMNS`, `ALL_TABLES`, …) e não são afetadas.
+
+A correção é apontar a sessão para o schema certo:
+
+```ini
+# .env (pasta do MCP) — padrão de todos os projetos
+SANKHYA_DB_SCHEMA=SANKHYA
+```
+
+O MCP emite um `ALTER SESSION SET CURRENT_SCHEMA` por conexão. A variável ausente mantém o comportamento anterior, sem alterar a sessão.
+
+Para um projeto que precisa de outro schema, sobrescreva apenas ali com o `.sankhya-mcp.env` (ver `INSTALACAO.md`):
+
+```ini
+# .sankhya-mcp.env na raiz do projeto
+SANKHYA_DB_SCHEMA=TESTE
+```
+
+Para uma consulta pontual em outro schema, qualifique no `run_query`: `SELECT ... FROM TREINA.TGFCAB`.
 
 ---
 

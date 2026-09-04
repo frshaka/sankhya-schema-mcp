@@ -406,6 +406,18 @@ SANKHYA_DB_USER=USUARIO_PROJETO
 SANKHYA_DB_PASSWORD=senha_do_projeto
 ```
 
+O mesmo vale para o schema. Deixe o padrão da empresa no `.env` geral e sobrescreva só nos projetos que apontam para outro ambiente:
+
+```ini
+# .env geral (pasta do MCP)
+SANKHYA_DB_SCHEMA=SANKHYA
+
+# .sankhya-mcp.env de um projeto específico
+SANKHYA_DB_SCHEMA=TESTE
+```
+
+Sem `SANKHYA_DB_SCHEMA`, o Oracle resolve os nomes de tabela no schema do usuário conectado — e se ele não for o dono das tabelas, `table_sample` e `search_entities` respondem `ORA-00942` e a tradução de EntityName deixa de funcionar. Ver a seção correspondente no `README.md`.
+
 > **Atenção:** o `.sankhya-mcp.env` contém credenciais. Adicione-o ao `.gitignore` do projeto.
 
 ---

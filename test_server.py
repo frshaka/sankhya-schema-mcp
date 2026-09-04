@@ -275,6 +275,54 @@ def test_sessao_sempre_read_only():
     assert "SET TRANSACTION READ ONLY" in cursor.executado
 
 
+
+
+# --- Schema corrente da sessão -------------------------------------------
+
+
+def _com_schema(valor):
+    """Roda uma função com SANKHYA_DB_SCHEMA temporariamente redefinido."""
+    original = server.DB_CONFIG["schema"]
+    server.DB_CONFIG["schema"] = valor
+    try:
+        return server._validated_schema()
+    finally:
+        server.DB_CONFIG["schema"] = original
+
+
+def test_schema_ausente_nao_mexe_na_sessao():
+    # Sem a variável, nada de ALTER SESSION: é o comportamento de sempre.
+    assert _com_schema(None) is None
+    assert _com_schema("") is None
+    assert _com_schema("   ") is None
+
+
+def test_schema_normalizado_para_maiusculas():
+    assert _com_schema(" sankhya ") == "SANKHYA"
+
+
+def test_schema_invalido_falha_alto():
+    # CURRENT_SCHEMA não aceita bind: o nome é interpolado, então precisa ser
+    # recusado antes de chegar no banco.
+    for ruim in ["SANKHYA; DROP TABLE X", "SANKHYA TESTE", "SANKHYA--", "DONO.TABELA"]:
+        try:
+            _com_schema(ruim)
+        except ValueError:
+            continue
+        raise AssertionError(f"schema inválido aceito: {ruim!r}")
+
+
+def test_alter_session_usa_o_schema_configurado():
+    cursor = _FakeCursor(0)
+    original = server.DB_CONFIG["schema"]
+    server.DB_CONFIG["schema"] = "SANKHYA"
+    try:
+        server._set_current_schema(_FakeConn(cursor), None)
+    finally:
+        server.DB_CONFIG["schema"] = original
+    assert cursor.executado == ["ALTER SESSION SET CURRENT_SCHEMA = SANKHYA"]
+
+
 if __name__ == "__main__":
     testes = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for teste in testes:
