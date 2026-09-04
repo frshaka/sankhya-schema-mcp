@@ -1,8 +1,15 @@
 # Sankhya Schema MCP
 
-Servidor MCP (Model Context Protocol) que conecta o Claude Code e/ou o Codex CLI ao banco Oracle do Sankhya ERP, permitindo explorar tabelas, campos, índices, relacionamentos e executar queries SQL diretamente durante uma conversa.
+Servidor MCP (Model Context Protocol) que conecta o Claude Code e/ou o Codex CLI ao banco do Sankhya ERP, permitindo explorar tabelas, campos, índices, relacionamentos e executar queries SQL diretamente durante uma conversa.
 
-O servidor opera em modo **thick** via Oracle Instant Client 21c, garantindo compatibilidade com bancos Oracle 11.2 em diante.
+Suporta os **dois bancos** distribuídos pela Sankhya no ambiente de desenvolvimento:
+
+| Banco | Driver | Imagem Docker | Porta | Endereçamento |
+|-------|--------|---------------|-------|---------------|
+| Oracle (padrão) | `oracledb` em modo **thick** (Instant Client 21c, compatível com Oracle 11.2+) | `sankhyaimages/skdev-oracle:1.1.0` | 1521 | SID `XE` |
+| SQL Server | `pymssql` (wheel com FreeTDS embutido — não exige driver de sistema operacional) | `sankhyaimages/skdev-mssql:1.1.0` | 1433 | database `jiva` |
+
+A escolha é feita por `SANKHYA_DB_TYPE` no `.env` — veja [Configuração do banco](#configuração-do-banco).
 
 ---
 
@@ -17,7 +24,7 @@ O servidor opera em modo **thick** via Oracle Instant Client 21c, garantindo com
 | `get_foreign_keys` | Lista relacionamentos (FK) de entrada e saída de uma tabela |
 | `get_indexes` | Mostra índices e suas colunas |
 | `run_query` | Executa SELECT e retorna resultado formatado (somente leitura) |
-| `validate_query` | Valida sintaxe SQL via EXPLAIN PLAN sem executar |
+| `validate_query` | Valida sintaxe SQL sem executar (EXPLAIN PLAN no Oracle, SHOWPLAN_ALL no SQL Server) |
 | `table_sample` | Retorna amostra de dados reais da tabela |
 | `list_modules` | Visão geral dos módulos Sankhya por prefixo de tabela |
 
@@ -30,15 +37,17 @@ O servidor opera em modo **thick** via Oracle Instant Client 21c, garantindo com
 | Python | 3.10+ | `python --version` |
 | Git | qualquer | `git --version` |
 | Claude Code e/ou Codex CLI | qualquer | `claude --version` / `codex --version` |
-| Banco Oracle | 11.2+ | Acesso via host:porta/service |
+| Banco | Oracle 11.2+ ou SQL Server 2017+ | Acesso via host:porta |
 
 **Windows adicional:** PowerShell 7+ (`pwsh`) — [Instalar aqui](https://aka.ms/powershell)
 
-**Linux adicional:**
+**Linux adicional (somente para Oracle):**
 ```bash
 sudo apt-get install -y curl unzip libaio1
 # Ubuntu 24+: substituir libaio1 por libaio1t64
 ```
+
+> Para SQL Server não há dependência de sistema operacional: o `pymssql` traz o FreeTDS na própria wheel.
 
 ---
 
@@ -62,9 +71,9 @@ bash setup.sh
 
 O script de setup executa automaticamente:
 1. Menu de seleção dos CLIs onde registrar o MCP (Claude Code, Codex CLI ou ambos — default: Claude Code)
-2. Download e extração do Oracle Instant Client 21c (do GitHub Releases)
+2. Download e extração do Oracle Instant Client 21c (do GitHub Releases — necessário só para Oracle)
 3. Criação do ambiente virtual Python (`.venv/`)
-4. Instalação das dependências (`mcp`, `oracledb`, `python-dotenv`)
+4. Instalação das dependências (`mcp`, `oracledb`, `pymssql`, `python-dotenv`)
 5. Registro do servidor MCP nos CLIs escolhidos (Claude Code: `~/.claude.json` / Codex: `~/.codex/config.toml`)
 
 Para pular o menu (automação), use a flag de CLI:
@@ -93,13 +102,36 @@ Copie o arquivo de exemplo e edite com suas credenciais:
 cp .env.example .env
 ```
 
-Conteúdo do `.env`:
+### Escolhendo o banco
+
+Duas chaves definem o destino:
+
+| Chave | Valores | Default | Para que serve |
+|-------|---------|---------|----------------|
+| `SANKHYA_DB_TYPE` | `oracle` \| `sqlserver` | `oracle` | Escolhe o dialeto, o driver e as queries de catálogo |
+| `SANKHYA_DB_DATABASE` | nome do database | `jiva` | Só no SQL Server, que endereça database em vez de SID/service name |
+
+O default é `oracle` de propósito: uma instalação existente continua funcionando sem tocar no `.env`.
+Valor desconhecido em `SANKHYA_DB_TYPE` faz o servidor falhar na subida, em vez de conectar no banco errado.
+
+**Oracle** (`.env`):
 ```ini
+SANKHYA_DB_TYPE=oracle
 SANKHYA_DB_HOST=localhost
 SANKHYA_DB_PORT=1521
 # Conexão por SID (padrão). Para conectar por service name, use SANKHYA_DB_SERVICE_NAME (tem precedência).
 SANKHYA_DB_SERVICE=XE
 # SANKHYA_DB_SERVICE_NAME=ORCLPDB1
+SANKHYA_DB_USER=SANKHYA
+SANKHYA_DB_PASSWORD=developer
+```
+
+**SQL Server** (`.env`):
+```ini
+SANKHYA_DB_TYPE=sqlserver
+SANKHYA_DB_HOST=localhost
+SANKHYA_DB_PORT=1433
+SANKHYA_DB_DATABASE=jiva
 SANKHYA_DB_USER=SANKHYA
 SANKHYA_DB_PASSWORD=developer
 ```
@@ -112,12 +144,21 @@ O `.env` acima é a configuração **geral** (usada por padrão em qualquer proj
 
 Na inicialização, o MCP carrega primeiro o `.env` geral e, em seguida, o `.sankhya-mcp.env` do projeto — as variáveis do projeto **sobrescrevem** as do geral. Inclua apenas o que difere; o restante é herdado.
 
+Isso vale também para o **tipo de banco**: dá para manter o `.env` geral no Oracle e apontar um projeto específico para o SQL Server — ou o contrário — sem mexer na configuração dos outros.
+
 Exemplo de `.sankhya-mcp.env` em um projeto que conecta por service name:
 ```ini
 SANKHYA_DB_HOST=10.100.56.7
 SANKHYA_DB_SERVICE_NAME=MEUBANCO.EXEMPLO.COM.BR
 SANKHYA_DB_USER=USUARIO_PROJETO
 SANKHYA_DB_PASSWORD=senha_do_projeto
+```
+
+Exemplo de um projeto que roda contra o SQL Server, herdando o resto do `.env` geral:
+```ini
+SANKHYA_DB_TYPE=sqlserver
+SANKHYA_DB_PORT=1433
+SANKHYA_DB_DATABASE=jiva
 ```
 
 > **Atenção:** o `.sankhya-mcp.env` contém credenciais. Adicione-o ao `.gitignore` do projeto.
@@ -168,8 +209,8 @@ Busque a entidade "Parceiro"
 
 ## Segurança
 
-- Apenas `SELECT` é permitido — comandos DML/DDL (INSERT, UPDATE, DELETE, DROP etc.) são bloqueados
-- A validação é textual e não cobre tudo: uma função que já existe no schema com `PRAGMA AUTONOMOUS_TRANSACTION`, chamada em `SELECT pacote.funcao(x) FROM DUAL`, grava mesmo assim. Conecte sempre com um usuário Oracle sem privilégio de escrita — é a única defesa efetiva contra esse caso
+- Apenas `SELECT` é permitido — comandos DML/DDL (INSERT, UPDATE, DELETE, DROP etc.) são bloqueados por uma allowlist textual na aplicação
+- A validação é textual e não cobre tudo: uma função que já existe no schema com `PRAGMA AUTONOMOUS_TRANSACTION`, chamada em `SELECT pacote.funcao(x) FROM DUAL`, grava mesmo assim
 - A conexão é local — nenhum dado sai da máquina
 - Credenciais ficam no `.env` local, fora do controle de versão
 - Como o usuário recomendado é somente-leitura e normalmente **não** é o dono das tabelas, defina `SANKHYA_DB_SCHEMA` com o schema onde elas moram (ver abaixo) — sem isso, parte das tools responde `ORA-00942`
@@ -206,6 +247,53 @@ SANKHYA_DB_SCHEMA=TESTE
 
 Para uma consulta pontual em outro schema, qualifique no `run_query`: `SELECT ... FROM TREINA.TGFCAB`.
 
+### A segunda camada de proteção é mais fraca no SQL Server
+
+Além da validação da aplicação, cada consulta roda dentro de uma transação de leitura. **O que essa transação garante não é igual nos dois bancos** — e a diferença é real, não uma formalidade:
+
+| Banco | Comando | O que o banco faz com uma escrita que escape da validação |
+|-------|---------|-----------------------------------------------------------|
+| Oracle | `SET TRANSACTION READ ONLY` | **Recusa a escrita.** O servidor devolve `ORA-01456` e nada é executado |
+| SQL Server | `BEGIN TRANSACTION` + `ROLLBACK` sempre | **Executa a escrita** e depois a desfaz no rollback |
+
+Não existe no SQL Server um equivalente ao `SET TRANSACTION READ ONLY` do Oracle. `BEGIN TRANSACTION` com rollback garantido é o mais próximo disponível, mas é uma proteção de natureza diferente: ela **desfaz**, não **impede**. Verificado nesta base de desenvolvimento — dentro dessa transação o SQL Server aceitou `SELECT ... INTO`, `UPDATE` e `INSERT` sem reclamar; só o rollback da aplicação desfez.
+
+Na prática isso significa que, no SQL Server:
+
+- uma escrita chega a rodar no servidor antes de ser desfeita — com todos os efeitos colaterais que isso implica (triggers disparam, sequências e `IDENTITY` avançam, locks são tomados);
+- se o processo do MCP morrer entre a escrita e o rollback, o SQL Server desfaz a transação ao derrubar a conexão — mas isso depende do servidor perceber a queda, não de a escrita ter sido barrada;
+- a defesa que de fato impede a escrita é o **privilégio do login**.
+
+> **Recomendação para SQL Server:** conecte o MCP com um login mapeado apenas em `db_datareader` no database do Sankhya. É a única camada que **impede** a escrita em vez de desfazê-la, e é o que torna a proteção comparável à do Oracle. No Oracle a mesma recomendação vale (um usuário sem privilégio de escrita cobre o caso da função com `AUTONOMOUS_TRANSACTION`), mas lá o `READ ONLY` já cobre o caso comum sozinho.
+
+---
+
+## Equivalências de catálogo entre os bancos
+
+As tools respondem a mesma coisa nos dois bancos, lendo catálogos diferentes:
+
+| Informação | Oracle | SQL Server |
+|-----------|--------|------------|
+| Colunas, tipos e nulabilidade | `ALL_TAB_COLUMNS` (`DATA_TYPE`, `DATA_LENGTH`, `DATA_PRECISION`, `DATA_SCALE`, `NULLABLE`) | `INFORMATION_SCHEMA.COLUMNS` (`DATA_TYPE`, `CHARACTER_MAXIMUM_LENGTH`, `NUMERIC_PRECISION`, `NUMERIC_SCALE`, `IS_NULLABLE`) |
+| Lista de tabelas | `ALL_TABLES` | `INFORMATION_SCHEMA.TABLES` (`TABLE_TYPE = 'BASE TABLE'`) |
+| Contagem de linhas | `ALL_TABLES.NUM_ROWS` | soma de `sys.partitions.rows` (`index_id IN (0,1)`) |
+| Comentário de tabela/coluna | `ALL_TAB_COMMENTS` / `ALL_COL_COMMENTS` | `sys.extended_properties` com `name = 'MS_Description'` |
+| Índices | `ALL_INDEXES` + `ALL_IND_COLUMNS` | `sys.indexes` + `sys.index_columns` + `sys.columns` |
+| Foreign keys | `ALL_CONSTRAINTS` + `ALL_CONS_COLUMNS` | `sys.foreign_keys` + `sys.foreign_key_columns` |
+| Schema do objeto | `OWNER` | `TABLE_SCHEMA` |
+| Schemas de sistema, excluídos | `SYS`, `SYSTEM`, `DBSNMP`, `OUTLN` | `sys`, `INFORMATION_SCHEMA`, `guest` |
+| Limite de linhas da amostra | `WHERE ROWNUM <= :1` | `SELECT TOP (%s) *` |
+| Prefixo de módulo (`list_modules`) | `REGEXP_SUBSTR(TABLE_NAME,'^[A-Z]+')` | não existe — o prefixo é agrupado em Python, igual para os dois bancos |
+| Plano de execução (`validate_query`) | `EXPLAIN PLAN` + `PLAN_TABLE` | `SET SHOWPLAN_ALL ON` (devolve o plano estimado sem executar a query) |
+| Transação de leitura | `SET TRANSACTION READ ONLY` | `BEGIN TRANSACTION` + rollback — **não é equivalente**, ver [Segurança](#a-segunda-camada-de-proteção-é-mais-fraca-no-sql-server) |
+
+Notas:
+
+- O **dicionário Sankhya (`TDDINS`)** é tabela da aplicação, não do catálogo: as queries que o usam (`describe_table`, `search_entities`, resolução de EntityName) são idênticas nos dois bancos — só o placeholder de bind muda (`:1` no Oracle, `%s` no `pymssql`).
+- **Comentários de coluna vêm vazios no SQL Server** nas bases de desenvolvimento distribuídas pela Sankhya (nenhuma `MS_Description` cadastrada). A coluna aparece em branco, sem erro.
+- `NULLABLE` sai como `Y`/`N` no Oracle e `YES`/`NO` no SQL Server, e `DATA_LENGTH` vem nulo para tipos numéricos do SQL Server — o catálogo de origem é diferente, os valores refletem isso.
+- O **schema** é tratado como dado nos dois bancos, nunca fixado na query: na base `jiva` distribuída pela Sankhya as tabelas ficam em `SANKHYA` (não em `dbo`). Quando a mesma tabela aparece em mais de um schema, o `describe_table` escolhe o do usuário conectado e avisa onde mais ela existe.
+
 ---
 
 ## Estrutura do projeto
@@ -213,7 +301,8 @@ Para uma consulta pontual em outro schema, qualifique no `run_query`: `SELECT ..
 ```
 sankhya-schema-mcp/
 ├── src/
-│   └── server.py          # Servidor MCP principal
+│   ├── server.py          # Servidor MCP: tools, formatação e validação
+│   └── dialects.py        # Queries, conexão e transação por banco (Oracle/SQL Server)
 ├── instantclient/         # Oracle Instant Client (baixado pelo setup)
 ├── .venv/                 # Ambiente virtual Python (criado pelo setup)
 ├── .env                   # Credenciais do banco (não versionado)
@@ -223,6 +312,7 @@ sankhya-schema-mcp/
 ├── setup.ps1              # Instalador automático (Windows)
 ├── setup.sh               # Instalador automático (Linux)
 ├── requirements.txt       # Dependências Python
+├── test_server.py         # Autoteste das funções puras (não requer banco)
 └── INSTALACAO.md          # Guia detalhado de instalação
 ```
 
@@ -232,7 +322,13 @@ sankhya-schema-mcp/
 
 ### Banco de Dados com Docker
 
-#### Criando o volume de dados
+A Sankhya distribui as duas imagens em
+[developer.sankhya.com.br](https://developer.sankhya.com.br/docs/01_ambiente.md).
+Escolha uma e aponte o `SANKHYA_DB_TYPE` para ela.
+
+#### Oracle — `skdev-oracle`
+
+##### Criando o volume de dados
 
 Antes de iniciar o container, crie um volume para garantir a persistência dos dados:
 
@@ -240,7 +336,7 @@ Antes de iniciar o container, crie um volume para garantir a persistência dos d
 docker volume create skdev-oracle-volume
 ```
 
-#### Iniciando o container
+##### Iniciando o container
 
 ```bash
 docker run -d --name skdev-oracle --shm-size=1g -p 1521:1521 -p 5500:5500 -v skdev-oracle-volume:/opt/oracle/oradata sankhyaimages/skdev-oracle:1.1.0
@@ -248,7 +344,7 @@ docker run -d --name skdev-oracle --shm-size=1g -p 1521:1521 -p 5500:5500 -v skd
 
 > ⚠️ A primeira inicialização pode levar de 20 a 30 minutos. Acompanhe o progresso com: `docker logs -f skdev-oracle`.
 
-#### Credenciais de conexão
+##### Credenciais de conexão
 
 Use estas credenciais para conectar ao banco a partir do WPM ou de um cliente de banco de dados:
 
@@ -256,11 +352,43 @@ Use estas credenciais para conectar ao banco a partir do WPM ou de um cliente de
 |---|---|---|---|---|
 | `localhost` | `1521` | `XE` | `SANKHYA` | `developer` |
 
-#### Parar e reiniciar o container
+##### Parar e reiniciar o container
 
 ```bash
 docker stop skdev-oracle    # parar
 docker start skdev-oracle   # reiniciar
+```
+
+#### SQL Server — `skdev-mssql`
+
+```bash
+docker volume create skdev-mssql-volume
+
+docker run -d --name skdev-mssql -p 1433:1433 \
+  -v skdev-mssql-volume:/var/opt/mssql sankhyaimages/skdev-mssql:1.1.0
+```
+
+> ⚠️ A primeira inicialização também leva de 20 a 30 minutos. Acompanhe com: `docker logs -f skdev-mssql`.
+> O container está pronto quando o log mostra `SQL Server is now ready for client connections`.
+
+##### Credenciais de conexão
+
+| Endereço | Porta | Database | Usuário | Senha |
+|---|---|---|---|---|
+| `localhost` | `1433` | `jiva` | `SANKHYA` | `developer` |
+
+Configuração correspondente no `.env`:
+```ini
+SANKHYA_DB_TYPE=sqlserver
+SANKHYA_DB_PORT=1433
+SANKHYA_DB_DATABASE=jiva
+```
+
+##### Parar e reiniciar o container
+
+```bash
+docker stop skdev-mssql    # parar
+docker start skdev-mssql   # reiniciar
 ```
 
 ---

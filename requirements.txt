@@ -1,3 +1,4 @@
 mcp[cli]>=1.0.0,<2.0.0
-oracledb>=2.0.0,<3.0.0
 python-dotenv>=1.0.0
+# Driver Oracle (SANKHYA_DB_TYPE=oracle) — padrão, sempre instalado.
+oracledb>=2.0.0,<3.0.0

@@ -1,5 +1,5 @@
 r"""
-Autoteste das funções puras do servidor MCP (não requer banco Oracle).
+Autoteste das funções puras do servidor MCP (não requer banco).
 
 Execute:
     Windows: .\.venv\Scripts\python.exe test_server.py
@@ -7,12 +7,22 @@ Execute:
 """
 
 import sys
+from contextlib import contextmanager
 from decimal import Decimal
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
+import dialects  # noqa: E402
 import server  # noqa: E402
+from dialects import (  # noqa: E402
+    BEGIN_READ_ONLY,
+    QUERIES,
+    group_prefixes,
+    resolve_db_type,
+    resolve_schema,
+    schema_prefix,
+)
 from server import (  # noqa: E402
     assert_read_only_query,
     assert_safe_identifier,
@@ -217,15 +227,20 @@ class _FakeConn:
         pass
 
 
-def _fetch_com_banco_falso(total, limit):
+def _fetch_com_banco_falso(total, limit, db_type="oracle"):
     """Roda fetch_rows contra um cursor falso e devolve (linhas, truncado, cursor)."""
     cursor = _FakeCursor(total)
-    original = server.get_pool
-    server.get_pool = lambda: type("P", (), {"acquire": lambda _s: _FakeConn(cursor)})()
+
+    @contextmanager
+    def _connect_falso():
+        yield _FakeConn(cursor)
+
+    original_connect, original_tipo = server.connect, server.DB_TYPE
+    server.connect, server.DB_TYPE = _connect_falso, db_type
     try:
         rows, truncated = server.fetch_rows("SELECT 1 FROM DUAL", limit=limit)
     finally:
-        server.get_pool = original
+        server.connect, server.DB_TYPE = original_connect, original_tipo
     return rows, truncated, cursor
 
 
@@ -275,51 +290,256 @@ def test_sessao_sempre_read_only():
     assert "SET TRANSACTION READ ONLY" in cursor.executado
 
 
+def test_sessao_sqlserver_abre_transacao_explicita():
+    # O SQL Server não tem READ ONLY de sessão: a transação explícita é o mais
+    # próximo, e sem ela uma escrita que escapasse da validação ficaria gravada.
+    _, _, cursor = _fetch_com_banco_falso(total=5, limit=None, db_type="sqlserver")
+    assert "BEGIN TRANSACTION" in cursor.executado
+    assert "SET TRANSACTION READ ONLY" not in cursor.executado
 
 
-# --- Schema corrente da sessão -------------------------------------------
+# --- Dialetos --------------------------------------------------------------
+
+
+@contextmanager
+def _dialeto(tipo):
+    """Ativa um dialeto para o trecho, e devolve o anterior ao sair."""
+    original = dialects.DB_TYPE
+    dialects.DB_TYPE = tipo
+    try:
+        yield
+    finally:
+        dialects.DB_TYPE = original
+
+
+def test_selecao_de_dialeto_por_env():
+    # Ausente/vazio cai em oracle: instalação existente não pode passar a exigir
+    # configuração nova para continuar funcionando.
+    assert resolve_db_type(None) == "oracle"
+    assert resolve_db_type("") == "oracle"
+    assert resolve_db_type("   ") == "oracle"
+    assert resolve_db_type("oracle") == "oracle"
+    assert resolve_db_type("sqlserver") == "sqlserver"
+    # Tolerante a maiúsculas e espaços: o valor vem digitado à mão no .env.
+    assert resolve_db_type(" SqlServer ") == "sqlserver"
+
+
+def test_dialeto_invalido_falha_alto():
+    # Conectar no banco errado é pior que não subir.
+    for valor in ["postgres", "mssql", "sql server"]:
+        try:
+            resolve_db_type(valor)
+        except ValueError:
+            continue
+        raise AssertionError(f"deveria recusar: {valor!r}")
+
+
+def test_dialetos_expoem_o_mesmo_conjunto_de_queries():
+    # Query que exista só de um lado vira AttributeError em produção, no banco
+    # que ninguém testou.
+    assert set(QUERIES["oracle"]) == set(QUERIES["sqlserver"])
+
+
+def test_cada_dialeto_usa_o_catalogo_do_seu_banco():
+    assert "ALL_TAB_COLUMNS" in QUERIES["oracle"]["columns"]
+    assert "INFORMATION_SCHEMA.COLUMNS" in QUERIES["sqlserver"]["columns"]
+    assert "ALL_INDEXES" in QUERIES["oracle"]["indexes"]
+    assert "sys.indexes" in QUERIES["sqlserver"]["indexes"]
+    assert "ALL_CONSTRAINTS" in QUERIES["oracle"]["foreign_keys"]
+    assert "sys.foreign_keys" in QUERIES["sqlserver"]["foreign_keys"]
+    # TDDINS é tabela da aplicação: idêntica nos dois, não duplicada.
+    for nome in ["resolve_table", "instances_by_table", "search_entities"]:
+        assert "TDDINS" in QUERIES["oracle"][nome]
+        assert QUERIES["oracle"][nome] == QUERIES["sqlserver"][nome]
+
+
+def test_placeholder_de_bind_por_dialeto():
+    with _dialeto("oracle"):
+        assert ":1" in dialects.query("columns")
+        assert "%s" not in dialects.query("columns")
+    with _dialeto("sqlserver"):
+        assert "%s" in dialects.query("columns")
+        assert ":1" not in dialects.query("columns")
+
+
+def test_placeholder_resolvido_tambem_no_filtro_opcional():
+    # search_columns monta o filtro sem saber qual banco está ativo.
+    with _dialeto("oracle"):
+        sql = dialects.query("columns_search", filtro="AND c.TABLE_NAME LIKE {p2}")
+        assert "LIKE :2" in sql
+    with _dialeto("sqlserver"):
+        sql = dialects.query("columns_search", filtro="AND c.TABLE_NAME LIKE {p2}")
+        assert sql.count("%s") == 2
+
+
+def test_amostra_usa_o_limitador_de_linhas_do_banco():
+    with _dialeto("oracle"):
+        assert dialects.query("table_sample", tabela="TGFCAB") == (
+            "SELECT * FROM TGFCAB WHERE ROWNUM <= :1"
+        )
+    with _dialeto("sqlserver"):
+        assert dialects.query("table_sample", tabela="TGFCAB") == (
+            "SELECT TOP (%s) * FROM TGFCAB"
+        )
+
+
+def test_search_entities_tem_um_bind_por_ocorrencia():
+    # `fetch_rows` manda dois parâmetros: o pymssql não reaproveita bind
+    # posicional como o Oracle faz com `:1` repetido.
+    with _dialeto("sqlserver"):
+        assert dialects.query("search_entities", filtro="").count("%s") == 2
+    with _dialeto("oracle"):
+        sql = dialects.query("search_entities", filtro="")
+        assert ":1" in sql and ":2" in sql
+
+
+def test_begin_read_only_por_dialeto():
+    assert BEGIN_READ_ONLY["oracle"] == "SET TRANSACTION READ ONLY"
+    assert BEGIN_READ_ONLY["sqlserver"] == "BEGIN TRANSACTION"
+
+
+# --- Agrupamento de módulos (list_modules) ---------------------------------
+
+
+def test_agrupa_prefixo_de_tabela():
+    # Mesma semântica do REGEXP_SUBSTR(TABLE_NAME, '^[A-Z]+') que o Oracle usava:
+    # o prefixo é a sequência de letras inicial, que para no primeiro separador.
+    modulos = group_prefixes(
+        ["WWV_FLOW", "WWV_PAGE", "TFPS_A", "TFPS_B", "TFPS_C", "TGFCAB"]
+    )
+    assert modulos == [
+        {"prefixo": "TFPS", "qtd_tabelas": 3},
+        {"prefixo": "WWV", "qtd_tabelas": 2},
+    ]
+
+
+def test_agrupamento_descarta_prefixo_com_uma_tabela_so():
+    # Mesma regra do HAVING COUNT(*) > 1 do SQL original: prefixo único é ruído.
+    # Num nome sem separador o prefixo é o nome inteiro, então cada um fica só.
+    assert group_prefixes(["TGFCAB", "TGFITE"]) == []
+    assert group_prefixes([]) == []
+
+
+def test_agrupamento_ignora_nome_sem_prefixo_alfabetico():
+    assert group_prefixes(["123", "", "TGF_A", "TGF_B"]) == [
+        {"prefixo": "TGF", "qtd_tabelas": 2},
+    ]
+
+
+def test_agrupamento_desempata_por_ordem_alfabetica():
+    # Empate na contagem precisa de ordem estável, senão a saída muda a cada run.
+    assert group_prefixes(["ZZ_A", "ZZ_B", "AA_A", "AA_B"]) == [
+        {"prefixo": "AA", "qtd_tabelas": 2},
+        {"prefixo": "ZZ", "qtd_tabelas": 2},
+    ]
+
+
+def test_agrupamento_normaliza_caixa_do_prefixo():
+    # O Oracle só casava [A-Z]; no SQL Server um nome minúsculo é plausível e
+    # ficaria de fora do agrupamento inteiro.
+    assert group_prefixes(["tgf_a", "TGF_B"]) == [{"prefixo": "TGF", "qtd_tabelas": 2}]
+
+
+# --- Allowlist: SELECT ... INTO e literais --------------------------------
+
+
+def test_bloqueia_select_into():
+    # `SELECT ... INTO nova FROM x` começa com SELECT e passaria a checagem de
+    # prefixo, mas no SQL Server cria tabela — escrita, e lá não existe READ
+    # ONLY de sessão para recusar. Bloqueado nos dois bancos.
+    for sql in [
+        "SELECT * INTO nova FROM TGFCAB",
+        "select nunota into #tmp from TGFCAB",
+        "WITH x AS (SELECT 1 c FROM T) SELECT * INTO t FROM x",
+        "SELECT * /* disfarce */ INTO nova FROM TGFCAB",
+    ]:
+        assert assert_read_only_query(sql) is not None, sql
+
+
+def test_literal_de_texto_nao_reprova_query_valida():
+    # `;` e `INTO` dentro de aspas são dado, não comando. O caso do `;` era um
+    # falso positivo que já existia antes do bloqueio de INTO.
+    for sql in [
+        "SELECT 'entrada into saida' AS obs FROM DUAL",
+        "SELECT 'a;b' FROM DUAL",
+        "SELECT 'aspa '' dobrada into x' FROM DUAL",
+    ]:
+        assert assert_read_only_query(sql) is None, sql
+
+
+def test_bloqueio_de_into_nao_pega_palavra_composta():
+    # Só a palavra inteira: coluna chamada INTOLERANCIA ou POINTO não é INTO.
+    assert assert_read_only_query("SELECT INTOLERANCIA FROM T") is None
+    assert assert_read_only_query("SELECT PONTO_INTOCADO FROM T") is None
+
+
+# --- Schema das tabelas (SANKHYA_DB_SCHEMA) -------------------------------
 
 
 def _com_schema(valor):
-    """Roda uma função com SANKHYA_DB_SCHEMA temporariamente redefinido."""
-    original = server.DB_CONFIG["schema"]
-    server.DB_CONFIG["schema"] = valor
+    """Roda schema_prefix() com SANKHYA_DB_SCHEMA temporariamente redefinido."""
+    original = dialects.DB_CONFIG["schema"]
+    dialects.DB_CONFIG["schema"] = valor
     try:
-        return server._validated_schema()
+        return schema_prefix()
     finally:
-        server.DB_CONFIG["schema"] = original
+        dialects.DB_CONFIG["schema"] = original
 
 
-def test_schema_ausente_nao_mexe_na_sessao():
-    # Sem a variável, nada de ALTER SESSION: é o comportamento de sempre.
-    assert _com_schema(None) is None
-    assert _com_schema("") is None
-    assert _com_schema("   ") is None
+def test_schema_ausente_nao_qualifica_nada():
+    # Sem a variável, nome de tabela sai cru: comportamento de sempre.
+    assert resolve_schema(None) is None
+    assert resolve_schema("") is None
+    assert resolve_schema("   ") is None
+    assert _com_schema(None) == ""
 
 
 def test_schema_normalizado_para_maiusculas():
-    assert _com_schema(" sankhya ") == "SANKHYA"
+    assert resolve_schema(" sankhya ") == "SANKHYA"
+    assert _com_schema("SANKHYA") == "SANKHYA."
 
 
 def test_schema_invalido_falha_alto():
-    # CURRENT_SCHEMA não aceita bind: o nome é interpolado, então precisa ser
-    # recusado antes de chegar no banco.
-    for ruim in ["SANKHYA; DROP TABLE X", "SANKHYA TESTE", "SANKHYA--", "DONO.TABELA"]:
+    # O nome é interpolado no texto da query e do ALTER SESSION — nenhum dos
+    # dois aceita bind para identificador —, então precisa ser recusado antes.
+    for ruim in ["SANKHYA; DROP TABLE X", "SANKHYA TESTE", "SANKHYA--", "DONO.TABELA", "1SCHEMA"]:
         try:
-            _com_schema(ruim)
+            resolve_schema(ruim)
         except ValueError:
             continue
         raise AssertionError(f"schema inválido aceito: {ruim!r}")
 
 
-def test_alter_session_usa_o_schema_configurado():
-    cursor = _FakeCursor(0)
-    original = server.DB_CONFIG["schema"]
-    server.DB_CONFIG["schema"] = "SANKHYA"
+def test_schema_qualifica_amostra_e_tddins_nos_dois_bancos():
+    # As quatro referências não qualificadas: a amostra e as três do TDDINS.
+    original = dialects.DB_CONFIG["schema"]
+    dialects.DB_CONFIG["schema"] = "SANKHYA"
     try:
-        server._set_current_schema(_FakeConn(cursor), None)
+        with _dialeto("oracle"):
+            assert dialects.query("table_sample", tabela="TGFCAB") == (
+                "SELECT * FROM SANKHYA.TGFCAB WHERE ROWNUM <= :1"
+            )
+            for nome in ["resolve_table", "instances_by_table", "search_entities"]:
+                assert "FROM SANKHYA.TDDINS" in dialects.query(nome, filtro="")
+        with _dialeto("sqlserver"):
+            assert dialects.query("table_sample", tabela="TGFCAB") == (
+                "SELECT TOP (%s) * FROM SANKHYA.TGFCAB"
+            )
+            assert "FROM SANKHYA.TDDINS" in dialects.query("resolve_table")
     finally:
-        server.DB_CONFIG["schema"] = original
+        dialects.DB_CONFIG["schema"] = original
+
+
+def test_alter_session_so_no_oracle():
+    # No SQL Server o schema padrão vem do mapeamento do login: persistente e
+    # com privilégio, não é papel deste servidor mexer. Lá vale o qualificador.
+    cursor = _FakeCursor(0)
+    original = dialects.DB_CONFIG["schema"]
+    dialects.DB_CONFIG["schema"] = "SANKHYA"
+    try:
+        dialects._set_current_schema(_FakeConn(cursor), None)
+    finally:
+        dialects.DB_CONFIG["schema"] = original
     assert cursor.executado == ["ALTER SESSION SET CURRENT_SCHEMA = SANKHYA"]
 
 
