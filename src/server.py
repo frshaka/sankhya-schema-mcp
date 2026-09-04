@@ -41,15 +41,58 @@ DB_CONFIG = {
     "service_name": os.getenv("SANKHYA_DB_SERVICE_NAME", None),
     "user":         os.getenv("SANKHYA_DB_USER",         "SANKHYA"),
     "password":     os.getenv("SANKHYA_DB_PASSWORD",     "oracle"),
+    # Schema onde as tabelas do Sankhya moram, quando não é o do usuário conectado.
+    # Ausente = não mexe na sessão (comportamento de sempre).
+    "schema":       os.getenv("SANKHYA_DB_SCHEMA",        None),
 }
 
 _pool: Optional[oracledb.ConnectionPool] = None
+
+
+def _set_current_schema(conn, requested_tag):
+    """
+    Aponta a sessão para `SANKHYA_DB_SCHEMA`.
+
+    Sem isso, todo nome não qualificado é resolvido no schema do usuário
+    conectado. Numa base onde o usuário do MCP não é o dono das tabelas — o
+    caso comum quando se conecta com um login somente-leitura — `SELECT * FROM
+    TGFCAB` e `FROM TDDINS` respondem ORA-00942 mesmo com a tabela visível no
+    catálogo. Um `ALTER SESSION` por conexão resolve `table_sample`,
+    `search_entities` e a tradução de EntityName de uma vez, porque as três
+    dependem da mesma resolução de nome.
+
+    Registrado como `session_callback` do pool: roda uma vez por conexão física
+    criada, e não a cada query — o `ALTER SESSION` vale por toda a sessão.
+    """
+    with conn.cursor() as cur:
+        cur.execute(f"ALTER SESSION SET CURRENT_SCHEMA = {DB_CONFIG['schema']}")
+
+
+def _validated_schema() -> Optional[str]:
+    """
+    Devolve o schema configurado em maiúsculas, ou None se não houver.
+
+    `CURRENT_SCHEMA` não aceita bind — o nome vai interpolado no texto do
+    comando, então ele é validado como identificador antes. O ponto é recusado
+    à parte: `assert_safe_identifier` tolera `DONO.TABELA`, que é nome de
+    tabela válido mas não é nome de schema.
+    """
+    schema = (DB_CONFIG["schema"] or "").strip().upper()
+    if not schema:
+        return None
+    if "." in schema or assert_safe_identifier(schema):
+        raise ValueError(
+            f"SANKHYA_DB_SCHEMA inválido: {DB_CONFIG['schema']!r}. "
+            "Use apenas o nome do schema, sem ponto."
+        )
+    return schema
 
 
 def get_pool() -> oracledb.ConnectionPool:
     global _pool
     if _pool is None:
         _ensure_oracle_client()
+        DB_CONFIG["schema"] = _validated_schema()
         # service_name tem precedência sobre SID quando informado
         if DB_CONFIG["service_name"]:
             dsn = oracledb.makedsn(
@@ -68,6 +111,7 @@ def get_pool() -> oracledb.ConnectionPool:
             min=1,
             max=5,
             increment=1,
+            session_callback=_set_current_schema if DB_CONFIG["schema"] else None,
         )
     return _pool
 
@@ -723,7 +767,20 @@ def search_entities(keyword: str, only_root: bool = False) -> str:
           {root_filter}
         ORDER BY RAIZ DESC, NOMETAB, NOMEINSTANCIA
     """
-    rows, truncated = fetch_rows(sql, [f"%{keyword}%"])
+    try:
+        rows, truncated = fetch_rows(sql, [f"%{keyword}%"])
+    except oracledb.DatabaseError as exc:
+        # Único lugar que dependia de TDDINS sem tratar a ausência: as outras duas
+        # consultas ao dicionário degradam, aqui o ORA-00942 cru vazava para o
+        # cliente MCP. Sem TDDINS esta tool não tem o que responder, mas o motivo
+        # precisa ser legível.
+        if not _is_missing_object(exc):
+            raise
+        return (
+            "❌ O dicionário Sankhya (TDDINS) não está acessível neste schema, "
+            "então não há entidades a buscar. Verifique `SANKHYA_DB_SCHEMA` ou as "
+            "permissões do usuário conectado."
+        )
     if not rows:
         return f"_Nenhuma entidade encontrada para `{keyword}`._"
     note = truncation_note(truncated)
