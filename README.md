@@ -283,7 +283,7 @@ As tools respondem a mesma coisa nos dois bancos, lendo catálogos diferentes:
 | Schema do objeto | `OWNER` | `TABLE_SCHEMA` |
 | Schemas de sistema, excluídos | `SYS`, `SYSTEM`, `DBSNMP`, `OUTLN` | `sys`, `INFORMATION_SCHEMA`, `guest` |
 | Limite de linhas da amostra | `WHERE ROWNUM <= :1` | `SELECT TOP (%s) *` |
-| Prefixo de módulo (`list_modules`) | `REGEXP_SUBSTR(TABLE_NAME,'^[A-Z]+')` | não existe — o prefixo é agrupado em Python, igual para os dois bancos |
+| Prefixo de módulo (`list_modules`) | `REGEXP_SUBSTR` não existe no SQL Server | os 3 primeiros caracteres do nome, agrupados em Python — mesmo caminho para os dois bancos |
 | Plano de execução (`validate_query`) | `EXPLAIN PLAN` + `PLAN_TABLE` | `SET SHOWPLAN_ALL ON` (devolve o plano estimado sem executar a query) |
 | Transação de leitura | `SET TRANSACTION READ ONLY` | `BEGIN TRANSACTION` + rollback — **não é equivalente**, ver [Segurança](#a-segunda-camada-de-proteção-é-mais-fraca-no-sql-server) |
 
@@ -292,6 +292,7 @@ Notas:
 - O **dicionário Sankhya (`TDDINS`)** é tabela da aplicação, não do catálogo: as queries que o usam (`describe_table`, `search_entities`, resolução de EntityName) são idênticas nos dois bancos — só o placeholder de bind muda (`:1` no Oracle, `%s` no `pymssql`).
 - **Comentários de coluna vêm vazios no SQL Server** nas bases de desenvolvimento distribuídas pela Sankhya (nenhuma `MS_Description` cadastrada). A coluna aparece em branco, sem erro.
 - `NULLABLE` sai como `Y`/`N` no Oracle e `YES`/`NO` no SQL Server, e `DATA_LENGTH` vem nulo para tipos numéricos do SQL Server — o catálogo de origem é diferente, os valores refletem isso.
+- `list_modules` agrupa pelo **prefixo de 3 caracteres** (`TGFCAB`, `TGFITE` e `TGFPAR` contam para `TGF`), que é a convenção de nomenclatura do Sankhya; tabelas customizadas caem em `AD_`. Prefixo com uma tabela só fica de fora.
 - O **schema** é tratado como dado nos dois bancos, nunca fixado na query: na base `jiva` distribuída pela Sankhya as tabelas ficam em `SANKHYA` (não em `dbo`). Quando a mesma tabela aparece em mais de um schema, o `describe_table` escolhe o do usuário conectado e avisa onde mais ela existe.
 
 ---

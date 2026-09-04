@@ -402,42 +402,58 @@ def test_begin_read_only_por_dialeto():
 
 
 def test_agrupa_prefixo_de_tabela():
-    # Mesma semântica do REGEXP_SUBSTR(TABLE_NAME, '^[A-Z]+') que o Oracle usava:
-    # o prefixo é a sequência de letras inicial, que para no primeiro separador.
-    modulos = group_prefixes(
-        ["WWV_FLOW", "WWV_PAGE", "TFPS_A", "TFPS_B", "TFPS_C", "TGFCAB"]
-    )
+    # Contrato NOVO: prefixo de 3 caracteres, a convenção de nomenclatura do
+    # Sankhya. O SQL antigo agrupava pela sequência de letras inicial, que em
+    # `TGFCAB` casa o nome inteiro — então TGF, TSI e TCS, os módulos que a tool
+    # existe para mostrar, caíam no HAVING e sumiam da saída.
+    modulos = group_prefixes(["TGFCAB", "TGFITE", "TGFPAR", "TSIUSU", "TSIEMP"])
     assert modulos == [
-        {"prefixo": "TFPS", "qtd_tabelas": 3},
-        {"prefixo": "WWV", "qtd_tabelas": 2},
+        {"prefixo": "TGF", "qtd_tabelas": 3},
+        {"prefixo": "TSI", "qtd_tabelas": 2},
     ]
+
+
+def test_duas_tabelas_do_mesmo_prefixo_agrupam():
+    assert group_prefixes(["TGFCAB", "TGFITE"]) == [{"prefixo": "TGF", "qtd_tabelas": 2}]
 
 
 def test_agrupamento_descarta_prefixo_com_uma_tabela_so():
     # Mesma regra do HAVING COUNT(*) > 1 do SQL original: prefixo único é ruído.
-    # Num nome sem separador o prefixo é o nome inteiro, então cada um fica só.
-    assert group_prefixes(["TGFCAB", "TGFITE"]) == []
+    assert group_prefixes(["TGFCAB", "XYZUNICA"]) == []
     assert group_prefixes([]) == []
 
 
-def test_agrupamento_ignora_nome_sem_prefixo_alfabetico():
-    assert group_prefixes(["123", "", "TGF_A", "TGF_B"]) == [
+def test_agrupamento_com_nome_menor_que_o_prefixo_nao_quebra():
+    # Nome curto demais não tem prefixo de módulo: fica de fora sem estourar.
+    assert group_prefixes(["AB", "X", "", None, "TGFCAB", "TGFITE"]) == [
         {"prefixo": "TGF", "qtd_tabelas": 2},
+    ]
+
+
+def test_agrupamento_ignora_nome_sem_prefixo_alfabetico():
+    assert group_prefixes(["123456", "1234", "TGFCAB", "TGFITE"]) == [
+        {"prefixo": "TGF", "qtd_tabelas": 2},
+    ]
+
+
+def test_agrupamento_reconhece_tabela_customizada():
+    # Customizadas do Sankhya são AD_*: o prefixo de 3 pega o underscore junto.
+    assert group_prefixes(["AD_PEDIDO", "AD_CLIENTE"]) == [
+        {"prefixo": "AD_", "qtd_tabelas": 2},
     ]
 
 
 def test_agrupamento_desempata_por_ordem_alfabetica():
     # Empate na contagem precisa de ordem estável, senão a saída muda a cada run.
-    assert group_prefixes(["ZZ_A", "ZZ_B", "AA_A", "AA_B"]) == [
-        {"prefixo": "AA", "qtd_tabelas": 2},
-        {"prefixo": "ZZ", "qtd_tabelas": 2},
+    assert group_prefixes(["ZZZA", "ZZZB", "AAAA", "AAAB"]) == [
+        {"prefixo": "AAA", "qtd_tabelas": 2},
+        {"prefixo": "ZZZ", "qtd_tabelas": 2},
     ]
 
 
 def test_agrupamento_normaliza_caixa_do_prefixo():
-    # O Oracle só casava [A-Z]; no SQL Server um nome minúsculo é plausível e
-    # ficaria de fora do agrupamento inteiro.
-    assert group_prefixes(["tgf_a", "TGF_B"]) == [{"prefixo": "TGF", "qtd_tabelas": 2}]
+    # No SQL Server um nome minúsculo é plausível e ficaria num grupo separado.
+    assert group_prefixes(["tgfcab", "TGFITE"]) == [{"prefixo": "TGF", "qtd_tabelas": 2}]
 
 
 # --- Allowlist: SELECT ... INTO e literais --------------------------------

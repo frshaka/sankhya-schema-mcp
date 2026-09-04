@@ -10,7 +10,6 @@ fechadas. Um dict de queries por dialeto e uma função de conexão bastam.
 """
 
 import os
-import re
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
@@ -624,22 +623,33 @@ def is_plan_unavailable(exc: Exception) -> bool:
 # Agrupamento de módulos
 # ---------------------------------------------------------------------------
 
-_PREFIXO_RE = re.compile(r"^[A-Za-z]+")
+# Tamanho do prefixo de módulo. A nomenclatura do Sankhya é `<PRX><MOD3><CTX>`:
+# TGFCAB, TGFITE e TGFPAR são o módulo TGF; AD_XXX são as tabelas customizadas.
+PREFIXO_MODULO = 3
 
 
 def group_prefixes(table_names: list[str]) -> list[dict]:
     """
-    Agrupa nomes de tabela pelo prefixo alfabético inicial (TGFCAB → TGF).
+    Agrupa nomes de tabela pelo prefixo de 3 caracteres (TGFCAB → TGF).
 
     Feito em Python, não em SQL, porque o SQL Server não tem REGEXP_SUBSTR — e
     com um só caminho os dois bancos respondem exatamente a mesma coisa.
-    Prefixo com uma tabela só é ruído e fica de fora, como no SQL original.
+
+    O SQL original agrupava por `REGEXP_SUBSTR(TABLE_NAME, '^[A-Z]+')`, a
+    sequência de letras inicial. Num nome todo de letras isso casa o nome
+    inteiro: `TGFCAB` virava um grupo de uma tabela só e o `HAVING COUNT(*) > 1`
+    o descartava. Sobrevivia só quem tem dígito ou underscore depois das letras
+    — `WWV_*` do APEX, `TFPS_*` — e os módulos principais (TGF, TSI, TCS) não
+    apareciam. Três caracteres é a convenção real de nomenclatura do Sankhya.
+
+    Prefixo com uma tabela só continua sendo ruído e fica de fora, como no
+    `HAVING` original. Nome curto demais ou que não começa por letra é ignorado.
     """
     contagem: dict[str, int] = {}
-    for nome in table_names:
-        m = _PREFIXO_RE.match(nome or "")
-        if m:
-            prefixo = m.group(0).upper()
+    for nome in table_names or []:
+        nome = nome or ""
+        if len(nome) >= PREFIXO_MODULO and nome[0].isalpha():
+            prefixo = nome[:PREFIXO_MODULO].upper()
             contagem[prefixo] = contagem.get(prefixo, 0) + 1
     return [
         {"prefixo": p, "qtd_tabelas": n}

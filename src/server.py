@@ -606,10 +606,12 @@ def search_entities(keyword: str, only_root: bool = False) -> str:
 @mcp.tool()
 def list_modules() -> str:
     """
-    Lista os principais grupos de tabelas do Sankhya por prefixo,
-    com contagem de tabelas em cada módulo.
+    Lista os módulos do Sankhya agrupando as tabelas pelo prefixo de
+    3 caracteres do nome (TGFCAB, TGFITE e TGFPAR contam para TGF), com a
+    contagem de tabelas de cada módulo.
 
-    Retorna uma visão geral dos módulos disponíveis no schema.
+    Retorna uma visão geral dos módulos disponíveis no schema. Prefixo com uma
+    tabela só fica de fora. Tabelas customizadas aparecem sob `AD_`.
     """
     rows = execute_query(query("table_names"), limit=None)
     modulos = group_prefixes([r["table_name"] for r in rows])
