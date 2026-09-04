@@ -75,6 +75,9 @@ def get_pool() -> oracledb.ConnectionPool:
 # Teto para buscas abertas (search_*), cujo resultado cresce com o schema inteiro
 # e não com uma tabela específica. Metadados de uma única tabela usam limit=None.
 DEFAULT_ROW_LIMIT = 200
+# Schemas internos do Oracle, excluídos de toda consulta a metadados. Interpolado
+# via f-string nas queries (é lista fixa, nunca vem de entrada do usuário).
+SYSTEM_OWNERS = "('SYS','SYSTEM','DBSNMP','OUTLN')"
 # Identifica os planos gerados por este servidor dentro da PLAN_TABLE.
 PLAN_STATEMENT_ID = "SANKHYA_MCP"
 
@@ -145,6 +148,16 @@ def rows_to_markdown(rows: list[dict]) -> str:
         cells = [str(row.get(h, "") or "") for h in headers]
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)
+
+
+def pick_owner(owners: set[str]) -> str:
+    """
+    Escolhe um único schema quando a mesma tabela aparece em mais de um owner
+    visível: o do usuário conectado, se estiver entre eles; senão o primeiro em
+    ordem alfabética.
+    """
+    conectado = (DB_CONFIG["user"] or "").upper()
+    return conectado if conectado in owners else sorted(owners)[0]
 
 
 def _is_missing_object(exc: oracledb.DatabaseError) -> bool:
@@ -274,7 +287,7 @@ def describe_table(table_name: str) -> str:
     """
     resolved, entity_rows = resolve_table_name(table_name)
 
-    sql = """
+    sql = f"""
         SELECT
             c.COLUMN_NAME,
             c.DATA_TYPE,
@@ -282,14 +295,15 @@ def describe_table(table_name: str) -> str:
             c.DATA_PRECISION,
             c.DATA_SCALE,
             c.NULLABLE,
-            cm.COMMENTS
+            cm.COMMENTS,
+            c.OWNER
         FROM ALL_TAB_COLUMNS c
         LEFT JOIN ALL_COL_COMMENTS cm
             ON cm.TABLE_NAME = c.TABLE_NAME
             AND cm.COLUMN_NAME = c.COLUMN_NAME
             AND cm.OWNER = c.OWNER
         WHERE c.TABLE_NAME = :1
-          AND c.OWNER NOT IN ('SYS','SYSTEM','DBSNMP','OUTLN')
+          AND c.OWNER NOT IN {SYSTEM_OWNERS}
         ORDER BY c.COLUMN_ID
     """
     # limit=None: toda coluna da tabela precisa aparecer, sem exceção.
@@ -297,7 +311,21 @@ def describe_table(table_name: str) -> str:
     if not rows:
         return f"Tabela `{resolved}` não encontrada ou sem colunas."
 
+    # A mesma tabela pode existir em vários schemas visíveis. Sem fixar um owner,
+    # as colunas viriam duplicadas e o total no rodapé seria falso. Preferimos o
+    # schema do usuário conectado; senão, o primeiro em ordem alfabética.
+    owners = {r["owner"] for r in rows}
+    owner = pick_owner(owners)
+    rows = [r for r in rows if r["owner"] == owner]
+    for r in rows:
+        del r["owner"]
+
     header = f"## {resolved}"
+    if len(owners) > 1:
+        outros = ", ".join(f"`{o}`" for o in sorted(owners) if o != owner)
+        header += (
+            f"\n**Schema:** `{owner}` — atenção: esta tabela também existe em {outros}."
+        )
     if entity_rows:
         e = entity_rows[0]
         header += f"\n**EntityName:** `{e['nomeinstancia']}` — {e['descrinstancia']}"
@@ -338,7 +366,7 @@ def search_tables(keyword: str) -> str:
       search_tables("PARC")  → tabelas relacionadas a parceiros
       search_tables("FIN")   → tabelas financeiras
     """
-    sql = """
+    sql = f"""
         SELECT
             t.TABLE_NAME,
             t.NUM_ROWS,
@@ -348,7 +376,7 @@ def search_tables(keyword: str) -> str:
             ON cm.TABLE_NAME = t.TABLE_NAME
             AND cm.OWNER = t.OWNER
         WHERE t.TABLE_NAME LIKE :1
-          AND t.OWNER NOT IN ('SYS','SYSTEM','DBSNMP','OUTLN')
+          AND t.OWNER NOT IN {SYSTEM_OWNERS}
         ORDER BY t.TABLE_NAME
     """
     rows, truncated = fetch_rows(sql, [f"%{keyword.upper()}%"])
@@ -380,7 +408,7 @@ def search_columns(column_keyword: str, table_keyword: str = "") -> str:
             AND cm.COLUMN_NAME = c.COLUMN_NAME
             AND cm.OWNER = c.OWNER
         WHERE c.COLUMN_NAME LIKE :1
-          AND c.OWNER NOT IN ('SYS','SYSTEM','DBSNMP','OUTLN')
+          AND c.OWNER NOT IN {SYSTEM_OWNERS}
           {table_filter}
         ORDER BY c.TABLE_NAME, c.COLUMN_ID
     """
@@ -438,7 +466,7 @@ def get_indexes(table_name: str) -> str:
       get_indexes("CabeçalhoNota")
     """
     resolved, _ = resolve_table_name(table_name)
-    sql = """
+    sql = f"""
         SELECT
             i.INDEX_NAME,
             i.INDEX_TYPE,
@@ -449,8 +477,10 @@ def get_indexes(table_name: str) -> str:
         JOIN ALL_IND_COLUMNS ic
             ON ic.INDEX_NAME = i.INDEX_NAME
             AND ic.TABLE_NAME = i.TABLE_NAME
+            AND ic.INDEX_OWNER = i.OWNER
+            AND ic.TABLE_OWNER = i.TABLE_OWNER
         WHERE i.TABLE_NAME = :1
-          AND i.OWNER NOT IN ('SYS','SYSTEM')
+          AND i.OWNER NOT IN {SYSTEM_OWNERS}
         ORDER BY i.INDEX_NAME, ic.COLUMN_POSITION
     """
     rows = execute_query(sql, [resolved], limit=None)
@@ -525,6 +555,15 @@ def validate_query(sql: str) -> str:
             return "✅ Query válida (sem plano retornado)."
         return f"✅ Query válida.\n\n## Plano de Execução\n\n{rows_to_markdown(rows)}"
     except Exception as e:
+        # PLAN_TABLE ausente/sem acesso (ORA-00942, ORA-02404) é falha de ambiente,
+        # não da query: reprovar a query aqui seria um veredito falso.
+        if _is_missing_object(e) or "ORA-02404" in str(e):
+            return (
+                "⚠️ Não foi possível analisar a query: a PLAN_TABLE não existe ou não "
+                "está acessível para este usuário. Crie-a (`utlxplan.sql`) ou libere "
+                "acesso a ela para usar o EXPLAIN PLAN.\n"
+                f"```\n{str(e)}\n```"
+            )
         return f"❌ Query inválida:\n```\n{str(e)}\n```"
 
 
@@ -602,12 +641,12 @@ def list_modules() -> str:
 
     Retorna uma visão geral dos módulos disponíveis no schema.
     """
-    sql = """
+    sql = f"""
         SELECT
             REGEXP_SUBSTR(TABLE_NAME, '^[A-Z]+') AS prefixo,
             COUNT(*) AS qtd_tabelas
         FROM ALL_TABLES
-        WHERE OWNER NOT IN ('SYS','SYSTEM','DBSNMP','OUTLN')
+        WHERE OWNER NOT IN {SYSTEM_OWNERS}
           AND TABLE_NAME NOT LIKE 'BIN$%'
         GROUP BY REGEXP_SUBSTR(TABLE_NAME, '^[A-Z]+')
         HAVING COUNT(*) > 1

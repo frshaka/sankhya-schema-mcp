@@ -15,6 +15,7 @@ import server  # noqa: E402
 from server import (  # noqa: E402
     assert_read_only_query,
     assert_safe_identifier,
+    pick_owner,
     rows_to_markdown,
     truncation_note,
     DEFAULT_ROW_LIMIT,
@@ -64,6 +65,19 @@ def test_markdown():
     assert rows_to_markdown([]) == "_Nenhum resultado encontrado._"
     md = rows_to_markdown([{"a": 1, "b": None}])
     assert md.splitlines() == ["| a | b |", "| --- | --- |", "| 1 |  |"]
+
+
+def test_owner_unico_por_tabela():
+    # Com a tabela em vários schemas visíveis, vence o do usuário conectado.
+    original = server.DB_CONFIG["user"]
+    server.DB_CONFIG["user"] = "sankhya"
+    try:
+        assert pick_owner({"AUDIT", "SANKHYA", "TESTE"}) == "SANKHYA"
+        # Sem o schema conectado entre eles, vence o primeiro em ordem alfabética.
+        assert pick_owner({"TESTE", "AUDIT"}) == "AUDIT"
+        assert pick_owner({"AUDIT"}) == "AUDIT"
+    finally:
+        server.DB_CONFIG["user"] = original
 
 
 def test_aviso_de_truncamento():
