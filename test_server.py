@@ -16,8 +16,10 @@ from server import (  # noqa: E402
     assert_read_only_query,
     assert_safe_identifier,
     rows_to_markdown,
+    select_columns,
     truncation_note,
     DEFAULT_ROW_LIMIT,
+    SAMPLE_COLUMN_LIMIT,
 )
 
 
@@ -69,6 +71,73 @@ def test_markdown():
 def test_aviso_de_truncamento():
     assert truncation_note(False, DEFAULT_ROW_LIMIT) == ""
     assert str(DEFAULT_ROW_LIMIT) in truncation_note(True, DEFAULT_ROW_LIMIT)
+
+
+# --- Projeção de colunas da amostra (select_columns) ----------------------
+
+
+def _linhas_largas(qtd_colunas=100, qtd_linhas=3):
+    """Linhas no formato que fetch_rows devolve: chaves minúsculas, na ordem da tabela."""
+    return [
+        {f"col{i:03d}": f"v{linha}_{i}" for i in range(qtd_colunas)}
+        for linha in range(qtd_linhas)
+    ]
+
+
+def test_projecao_corta_no_teto_e_informa_o_resto():
+    linhas = _linhas_largas(qtd_colunas=600)
+    projetadas, ausentes, cortadas = select_columns(linhas)
+    assert len(projetadas) == len(linhas)  # corta coluna, nunca linha
+    assert list(projetadas[0]) == [f"col{i:03d}" for i in range(SAMPLE_COLUMN_LIMIT)]
+    assert ausentes == []
+    assert cortadas == 600 - SAMPLE_COLUMN_LIMIT
+
+
+def test_projecao_sem_teto_quando_tabela_e_estreita():
+    projetadas, ausentes, cortadas = select_columns(_linhas_largas(qtd_colunas=3))
+    assert len(projetadas[0]) == 3
+    assert (ausentes, cortadas) == ([], 0)
+
+
+def test_projecao_respeita_colunas_pedidas():
+    linhas = _linhas_largas(qtd_colunas=600)
+    projetadas, ausentes, cortadas = select_columns(linhas, "col005,col001")
+    # Ordem de exibição é a que o usuário pediu, não a da tabela.
+    assert list(projetadas[0]) == ["col005", "col001"]
+    assert projetadas[0]["col005"] == "v0_5"
+    # Pedido explícito não é cortado pelo teto, mesmo acima dele.
+    assert (ausentes, cortadas) == ([], 0)
+    acima_do_teto = ",".join(f"col{i:03d}" for i in range(SAMPLE_COLUMN_LIMIT + 10))
+    projetadas, _, cortadas = select_columns(linhas, acima_do_teto)
+    assert len(projetadas[0]) == SAMPLE_COLUMN_LIMIT + 10
+    assert cortadas == 0
+
+
+def test_projecao_e_case_insensitive_e_ignora_espacos():
+    linhas = [{"nunota": 1, "codparc": 2, "vlrnota": 3.0}]
+    projetadas, ausentes, _ = select_columns(linhas, " NUNOTA , VlrNota ")
+    assert projetadas == [{"nunota": 1, "vlrnota": 3.0}]
+    assert ausentes == []
+
+
+def test_projecao_denuncia_coluna_inexistente():
+    linhas = [{"nunota": 1, "codparc": 2}]
+    projetadas, ausentes, _ = select_columns(linhas, "NUNOTA,NAOEXISTE")
+    # A coluna válida sai; a inválida não é silenciada.
+    assert projetadas == [{"nunota": 1}]
+    assert ausentes == ["NAOEXISTE"]
+
+
+def test_projecao_sem_nenhuma_coluna_valida_volta_vazia():
+    linhas = [{"nunota": 1, "codparc": 2}]
+    projetadas, ausentes, _ = select_columns(linhas, "FOO, BAR")
+    # Linhas vazias sinalizam ao chamador que não há tabela a exibir, só erro.
+    assert projetadas == []
+    assert ausentes == ["FOO", "BAR"]
+
+
+def test_projecao_sem_linhas_nao_quebra():
+    assert select_columns([], "NUNOTA") == ([], [], 0)
 
 
 # --- Dublês de banco: fetch_rows sem Oracle -------------------------------
