@@ -323,6 +323,32 @@ def test_alter_session_usa_o_schema_configurado():
     assert cursor.executado == ["ALTER SESSION SET CURRENT_SCHEMA = SANKHYA"]
 
 
+# --- Nome que o dicionário não reconheceu ---------------------------------
+
+
+def test_nome_resolvido_nao_gera_aviso():
+    # Resolveu via TDDINS: o vazio é real, cada tool usa a própria mensagem.
+    assert server.unresolved_name_note("CabecalhoNota", [{"nometab": "TGFCAB"}]) is None
+
+
+def test_nome_nao_resolvido_aponta_search_entities():
+    # "Nenhum índice encontrado" se lê como "a tabela não tem índice"; o que
+    # houve foi um EntityName que o dicionário não reconhece.
+    aviso = server.unresolved_name_note("CabeçalhoNota", [])
+    assert "search_entities(\"CabeçalhoNota\")" in aviso
+    assert "TDDINS" in aviso
+
+
+def test_exemplos_das_docstrings_usam_entityname_sem_acento():
+    # O EntityName de TGFCAB é `CabecalhoNota`, sem cedilha — `CabeçalhoNota`
+    # não existe no dicionário. Docstring é o que o cliente MCP mostra ao
+    # modelo: exemplo errado vira chamada errada.
+    for tool in (server.describe_table, server.get_indexes, server.search_entities):
+        doc = tool.__doc__ or ""
+        assert "CabeçalhoNota" not in doc, tool.__name__
+        assert "CabecalhoNota" in doc, tool.__name__
+
+
 if __name__ == "__main__":
     testes = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for teste in testes:
