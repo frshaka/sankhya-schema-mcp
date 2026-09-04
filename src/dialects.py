@@ -10,6 +10,7 @@ fechadas. Um dict de queries por dialeto e uma função de conexão bastam.
 """
 
 import os
+import re
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional

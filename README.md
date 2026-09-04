@@ -47,7 +47,13 @@ sudo apt-get install -y curl unzip libaio1
 # Ubuntu 24+: substituir libaio1 por libaio1t64
 ```
 
-> Para SQL Server não há dependência de sistema operacional: o `pymssql` traz o FreeTDS na própria wheel.
+> **Para SQL Server**, instale o driver à parte — ele fica fora do `requirements.txt` porque quem usa só Oracle não precisa dele, e a wheel do `pymssql` não existe para toda combinação de plataforma e versão de Python:
+>
+> ```bash
+> pip install -r requirements-sqlserver.txt
+> ```
+>
+> Não há dependência de sistema operacional: o `pymssql` traz o FreeTDS na própria wheel, ao contrário do `pyodbc`, que exigiria o `msodbcsql`.
 
 ---
 
@@ -73,7 +79,7 @@ O script de setup executa automaticamente:
 1. Menu de seleção dos CLIs onde registrar o MCP (Claude Code, Codex CLI ou ambos — default: Claude Code)
 2. Download e extração do Oracle Instant Client 21c (do GitHub Releases — necessário só para Oracle)
 3. Criação do ambiente virtual Python (`.venv/`)
-4. Instalação das dependências (`mcp`, `oracledb`, `pymssql`, `python-dotenv`)
+4. Instalação das dependências (`mcp`, `oracledb`, `python-dotenv`)
 5. Registro do servidor MCP nos CLIs escolhidos (Claude Code: `~/.claude.json` / Codex: `~/.codex/config.toml`)
 
 Para pular o menu (automação), use a flag de CLI:
@@ -213,30 +219,35 @@ Busque a entidade "Parceiro"
 - A validação é textual e não cobre tudo: uma função que já existe no schema com `PRAGMA AUTONOMOUS_TRANSACTION`, chamada em `SELECT pacote.funcao(x) FROM DUAL`, grava mesmo assim
 - A conexão é local — nenhum dado sai da máquina
 - Credenciais ficam no `.env` local, fora do controle de versão
-- Como o usuário recomendado é somente-leitura e normalmente **não** é o dono das tabelas, defina `SANKHYA_DB_SCHEMA` com o schema onde elas moram (ver abaixo) — sem isso, parte das tools responde `ORA-00942`
+- `SELECT ... INTO` é rejeitado pela allowlist. No Oracle não é sintaxe válida em SQL puro; no SQL Server **criaria tabela** — escrita disfarçada de leitura, e lá não existe `READ ONLY` de sessão para recusá-la
+- Como o usuário recomendado é somente-leitura e normalmente **não** é o dono das tabelas, defina `SANKHYA_DB_SCHEMA` com o schema onde elas moram (ver abaixo) — sem isso, parte das tools responde "objeto não existe"
 
 ---
 
 ## Schema das tabelas (`SANKHYA_DB_SCHEMA`)
 
-Nomes de tabela sem qualificação são resolvidos pelo Oracle no schema do usuário conectado. Quando o login do MCP não é o dono das tabelas — o caso normal ao seguir a recomendação de usar um usuário somente-leitura — três tools param de funcionar:
+Nome de tabela sem qualificação é resolvido no schema do usuário conectado — vale para os dois bancos. Quando o login do MCP não é o dono das tabelas, o caso normal ao seguir a recomendação de usar um usuário somente-leitura, três tools param de funcionar:
 
 | Tool | Sintoma |
 |---|---|
-| `table_sample` | `ORA-00942: table or view does not exist` |
+| `table_sample` | `ORA-00942` no Oracle, `Invalid object name` no SQL Server |
 | `search_entities` | falha ao ler `TDDINS` |
 | `describe_table`, `get_indexes`, `get_foreign_keys` | funcionam, mas **perdem** a tradução de EntityName (`describe_table("CabecalhoNota")`) sem exibir erro |
 
-As demais tools leem as views de catálogo (`ALL_TAB_COLUMNS`, `ALL_TABLES`, …) e não são afetadas.
+As demais tools leem as views de catálogo (`ALL_TAB_COLUMNS`/`INFORMATION_SCHEMA.COLUMNS`, `ALL_TABLES`/`INFORMATION_SCHEMA.TABLES`, …), que listam tudo que o usuário consegue ver independente do schema corrente, e não são afetadas.
 
-A correção é apontar a sessão para o schema certo:
+A correção é informar o schema:
 
 ```ini
 # .env (pasta do MCP) — padrão de todos os projetos
 SANKHYA_DB_SCHEMA=SANKHYA
 ```
 
-O MCP emite um `ALTER SESSION SET CURRENT_SCHEMA` por conexão. A variável ausente mantém o comportamento anterior, sem alterar a sessão.
+Com a variável definida, o MCP qualifica as quatro referências não qualificadas que existem — a amostra do `table_sample` e as três consultas ao `TDDINS` — passando a escrever `SANKHYA.TGFCAB` e `SANKHYA.TDDINS`. Ausente, os nomes saem crus e o comportamento é o anterior.
+
+No **Oracle**, além disso, cada conexão recebe um `ALTER SESSION SET CURRENT_SCHEMA`. Isso não é necessário para as queries acima, que já vão qualificadas — serve ao `run_query`, cujo SQL é escrito por quem chama: com a sessão apontada, `FROM TGFCAB` funciona sem qualificar à mão.
+
+No **SQL Server não há equivalente de sessão**: o schema padrão vem do mapeamento do login (`ALTER USER ... WITH DEFAULT_SCHEMA`), é persistente e exige privilégio, então não é papel deste servidor mexer nisso. Lá vale só o qualificador — e no `run_query` o nome precisa ser qualificado à mão (`FROM SANKHYA.TGFCAB`).
 
 Para um projeto que precisa de outro schema, sobrescreva apenas ali com o `.sankhya-mcp.env` (ver `INSTALACAO.md`):
 
@@ -312,7 +323,8 @@ sankhya-schema-mcp/
 ├── start.sh               # Script de inicialização (Linux)
 ├── setup.ps1              # Instalador automático (Windows)
 ├── setup.sh               # Instalador automático (Linux)
-├── requirements.txt       # Dependências Python
+├── requirements.txt       # Dependências Python (Oracle, padrão)
+├── requirements-sqlserver.txt  # Driver do SQL Server (opcional)
 ├── test_server.py         # Autoteste das funções puras (não requer banco)
 └── INSTALACAO.md          # Guia detalhado de instalação
 ```
