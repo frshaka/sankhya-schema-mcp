@@ -296,6 +296,25 @@ def resolve_table_name(name: str) -> tuple[str, list[dict]]:
     return name.upper(), []
 
 
+def unresolved_name_note(table_name: str, entity_rows: list[dict]) -> Optional[str]:
+    """
+    Mensagem para quando a consulta não devolveu nada e o nome também não veio
+    do dicionário. Retorna None quando o nome resolveu (aí o vazio é real).
+
+    Sem isso, um EntityName errado devolve "Nenhum índice encontrado" ou
+    "Tabela não encontrada ou sem colunas" — respostas que se leem como "essa
+    tabela não tem índice" e "essa tabela não existe", quando o que houve foi
+    um nome que o dicionário não reconheceu.
+    """
+    if entity_rows:
+        return None
+    return (
+        f"Nada encontrado para `{table_name}`, e o nome não corresponde a nenhum "
+        f'EntityName ativo no dicionário (TDDINS). Use `search_entities("{table_name}")` '
+        "para descobrir o nome correto."
+    )
+
+
 def assert_read_only_query(sql: str) -> Optional[str]:
     """
     Valida que `sql` é uma única consulta de leitura (SELECT ou WITH ... SELECT).
@@ -386,7 +405,7 @@ def describe_table(table_name: str) -> str:
 
     Exemplos:
       describe_table("TGFCAB")
-      describe_table("CabeçalhoNota")
+      describe_table("CabecalhoNota")
     """
     resolved, entity_rows = resolve_table_name(table_name)
 
@@ -412,7 +431,9 @@ def describe_table(table_name: str) -> str:
     # limit=None: toda coluna da tabela precisa aparecer, sem exceção.
     rows = execute_query(sql, [resolved], limit=None)
     if not rows:
-        return f"Tabela `{resolved}` não encontrada ou sem colunas."
+        return unresolved_name_note(table_name, entity_rows) or (
+            f"Tabela `{resolved}` não encontrada ou sem colunas."
+        )
 
     # A mesma tabela pode existir em vários schemas visíveis. Sem fixar um owner,
     # as colunas viriam duplicadas e o total no rodapé seria falso. Preferimos o
@@ -533,7 +554,7 @@ def get_foreign_keys(table_name: str) -> str:
       get_foreign_keys("TGFITE")
       get_foreign_keys("ItemNota")
     """
-    resolved, _ = resolve_table_name(table_name)
+    resolved, entity_rows = resolve_table_name(table_name)
     sql = """
         SELECT
             a.CONSTRAINT_NAME,
@@ -553,7 +574,9 @@ def get_foreign_keys(table_name: str) -> str:
     """
     rows = execute_query(sql, [resolved], limit=None)
     if not rows:
-        return f"Nenhuma FK encontrada para `{resolved}`."
+        return unresolved_name_note(table_name, entity_rows) or (
+            f"Nenhuma FK encontrada para `{resolved}`."
+        )
     return f"## Foreign Keys — {resolved}\n\n{rows_to_markdown(rows)}"
 
 
@@ -566,7 +589,7 @@ def get_indexes(table_name: str) -> str:
 
     Exemplos:
       get_indexes("TGFCAB")
-      get_indexes("CabeçalhoNota")
+      get_indexes("CabecalhoNota")
     """
     resolved, _ = resolve_table_name(table_name)
     sql = f"""
@@ -588,7 +611,9 @@ def get_indexes(table_name: str) -> str:
     """
     rows = execute_query(sql, [resolved], limit=None)
     if not rows:
-        return f"Nenhum índice encontrado para `{resolved}`."
+        return unresolved_name_note(table_name, entity_rows) or (
+            f"Nenhum índice encontrado para `{resolved}`."
+        )
     return f"## Índices — {resolved}\n\n{rows_to_markdown(rows)}"
 
 
@@ -748,7 +773,7 @@ def search_entities(keyword: str, only_root: bool = False) -> str:
       search_entities("nota fiscal")   → entidades de NF
       search_entities("pedido")        → entidades de pedido de venda
       search_entities("parceiro")      → entidades de parceiro/cliente/fornecedor
-      search_entities("CabeçalhoNota") → busca direta por EntityName
+      search_entities("CabecalhoNota") → busca direta por EntityName
     """
     root_filter = "AND RAIZ = 'S'" if only_root else ""
     sql = f"""

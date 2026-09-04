@@ -184,7 +184,7 @@ Nomes de tabela sem qualificação são resolvidos pelo Oracle no schema do usu�
 |---|---|
 | `table_sample` | `ORA-00942: table or view does not exist` |
 | `search_entities` | falha ao ler `TDDINS` |
-| `describe_table`, `get_indexes`, `get_foreign_keys` | funcionam, mas **perdem** a tradução de EntityName (`describe_table("CabeçalhoNota")`) sem exibir erro |
+| `describe_table`, `get_indexes`, `get_foreign_keys` | funcionam, mas **perdem** a tradução de EntityName (`describe_table("CabecalhoNota")`) sem exibir erro |
 
 As demais tools leem as views de catálogo (`ALL_TAB_COLUMNS`, `ALL_TABLES`, …) e não são afetadas.
 
