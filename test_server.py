@@ -7,6 +7,7 @@ Execute:
 """
 
 import sys
+from decimal import Decimal
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -64,6 +65,22 @@ def test_markdown():
     assert rows_to_markdown([]) == "_Nenhum resultado encontrado._"
     md = rows_to_markdown([{"a": 1, "b": None}])
     assert md.splitlines() == ["| a | b |", "| --- | --- |", "| 1 |  |"]
+
+
+def test_markdown_preserva_valores_falsy():
+    # Só NULL pode virar célula vazia: zero é um valor, e quem lê a tabela
+    # não tem como distinguir "0" apagado de "sem valor".
+    md = rows_to_markdown([
+        {"zero": 0, "falso": False, "decimal": Decimal("0.00"), "vazio": "", "nulo": None},
+    ])
+    assert md.splitlines()[-1] == "| 0 | False | 0.00 |  |  |"
+
+
+def test_markdown_escapa_pipe():
+    # Comentário de coluna do dicionário Sankhya pode conter `|`, que sem escape
+    # cria colunas fantasma e desalinha a tabela inteira.
+    md = rows_to_markdown([{"comentario": "Situação: A|I|C"}])
+    assert md.splitlines()[-1] == r"| Situação: A\|I\|C |"
 
 
 def test_aviso_de_truncamento():
@@ -150,6 +167,24 @@ def test_resultado_exato_no_teto_nao_e_truncado():
     rows, truncated, _ = _fetch_com_banco_falso(total=DEFAULT_ROW_LIMIT, limit=DEFAULT_ROW_LIMIT)
     assert len(rows) == DEFAULT_ROW_LIMIT
     assert truncated is False
+
+
+def test_limite_zero_nao_esvazia_resultado():
+    # limit=0 devolvia ([], truncado=True): query com linhas anunciada como vazia.
+    rows, truncated, _ = _fetch_com_banco_falso(total=3, limit=0)
+    assert len(rows) == 1
+    assert truncated is True
+
+
+def test_limite_negativo_nao_corta_o_fim():
+    # rows[:-5] descartaria o fim do resultado em silêncio.
+    rows, truncated, _ = _fetch_com_banco_falso(total=3, limit=-5)
+    assert len(rows) == 1
+    assert truncated is True
+
+
+def test_aviso_de_truncamento_usa_o_limite_padrao():
+    assert truncation_note(True) == truncation_note(True, DEFAULT_ROW_LIMIT)
 
 
 def test_sessao_sempre_read_only():
