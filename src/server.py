@@ -80,6 +80,10 @@ DEFAULT_ROW_LIMIT = 200
 SYSTEM_OWNERS = "('SYS','SYSTEM','DBSNMP','OUTLN')"
 # Identifica os planos gerados por este servidor dentro da PLAN_TABLE.
 PLAN_STATEMENT_ID = "SANKHYA_MCP"
+# Teto de colunas da amostra quando o chamador nao escolhe quais quer ver.
+# Tabela Sankhya e larga (TGFTOP passa de 600 colunas): um SELECT * inteiro
+# entope a janela de contexto de quem chamou sem ensinar nada a mais.
+SAMPLE_COLUMN_LIMIT = 25
 
 
 def fetch_rows(
@@ -140,6 +144,47 @@ def truncation_note(truncated: bool, limit: int = DEFAULT_ROW_LIMIT) -> str:
     if not truncated:
         return ""
     return f"\n\n> ⚠️ Resultado truncado em {limit} linha(s). Refine a busca para ver o restante."
+
+
+def select_columns(
+    rows: list[dict], columns: str = ""
+) -> tuple[list[dict], list[str], int]:
+    """
+    Projeta colunas sobre linhas que ja vieram do banco.
+    Retorna (linhas_projetadas, nomes_nao_encontrados, qtd_colunas_cortadas).
+
+    A projecao acontece em Python e nao no SELECT de proposito: sem SQL dinamico
+    nao ha superficie nova de injecao nem validacao nova a escrever, e as chaves
+    dos dicts que `fetch_rows` devolve ja vem na ordem das colunas da tabela.
+    Trazer 600 colunas de 10 linhas e descartar quase todas nao custa nada.
+
+    Sem `columns`, mantem as SAMPLE_COLUMN_LIMIT primeiras (ordem da tabela) e
+    informa quantas ficaram de fora — cabe ao chamador avisar, porque resultado
+    cortado em silencio e pior que resultado vazio.
+
+    Com `columns`, o match e case-insensitive e tolerante a espacos (as chaves
+    chegam minusculas de `fetch_rows` e o usuario digita em maiusculas), e os
+    nomes pedidos que nao existem voltam em `nomes_nao_encontrados` em vez de
+    sumirem. Quando nenhum dos pedidos existe, as linhas voltam vazias.
+    """
+    if not rows:
+        return rows, [], 0
+
+    disponiveis = list(rows[0])
+
+    if columns.strip():
+        pedidas = list(dict.fromkeys(c.strip() for c in columns.split(",") if c.strip()))
+        indice = {c.lower(): c for c in disponiveis}
+        mantidas = [indice[p.lower()] for p in pedidas if p.lower() in indice]
+        ausentes = [p for p in pedidas if p.lower() not in indice]
+        cortadas = 0
+    else:
+        mantidas = disponiveis[:SAMPLE_COLUMN_LIMIT]
+        ausentes = []
+        cortadas = len(disponiveis) - len(mantidas)
+
+    projetadas = [{c: row[c] for c in mantidas} for row in rows] if mantidas else []
+    return projetadas, ausentes, cortadas
 
 
 def rows_to_markdown(rows: list[dict]) -> str:
@@ -580,15 +625,27 @@ def validate_query(sql: str) -> str:
 
 
 @mcp.tool()
-def table_sample(table_name: str, limit: int = 10) -> str:
+def table_sample(table_name: str, limit: int = 10, columns: str = "") -> str:
     """
     Retorna uma amostra de dados reais de uma tabela.
     Útil para entender o conteúdo e o formato dos campos.
     Aceita tanto o nome da tabela Oracle quanto o EntityName (NOMEINSTANCIA).
 
+    Tabela Sankhya é larga (TGFTOP passa de 600 colunas). Sem `columns`, a
+    amostra traz apenas as primeiras colunas na ordem da tabela e avisa quantas
+    ficaram de fora — informe `columns` para ver exatamente as que interessam.
+
+    Parâmetros:
+      columns — colunas a exibir, separadas por vírgula. Case-insensitive e
+                tolerante a espaços. Nome inexistente é reportado na saída.
+
+    Fluxo natural: chame `describe_table` primeiro para conhecer os nomes das
+    colunas, depois `table_sample` com as colunas de interesse.
+
     Exemplos:
-      table_sample("TGFTOP", limit=5)
-      table_sample("TipoOperacao", limit=5)
+      table_sample("TGFCAB", limit=5)
+      table_sample("TGFCAB", limit=5, columns="NUNOTA,CODPARC,VLRNOTA")
+      table_sample("TipoOperacao", limit=5, columns="CODTIPOPER, DESCROPER")
     """
     resolved, _ = resolve_table_name(table_name)
     erro = assert_safe_identifier(resolved)
@@ -600,7 +657,35 @@ def table_sample(table_name: str, limit: int = 10) -> str:
         rows = execute_query(sql, [limit], limit=limit)
         if not rows:
             return f"Tabela `{resolved}` está vazia ou não existe."
-        return f"## Amostra — {resolved} ({len(rows)} linha(s))\n\n{rows_to_markdown(rows)}"
+
+        total_colunas = len(rows[0])
+        amostra, ausentes, cortadas = select_columns(rows, columns)
+        if not amostra:
+            return (
+                f"❌ Nenhuma das colunas pedidas existe em `{resolved}`: "
+                f"{', '.join(ausentes)}.\n"
+                f'Use `describe_table("{resolved}")` para ver os nomes válidos.'
+            )
+
+        avisos = []
+        if ausentes:
+            avisos.append(
+                f"> ⚠️ Coluna(s) inexistente(s) em `{resolved}`, ignorada(s): "
+                f"{', '.join(ausentes)}."
+            )
+        if cortadas:
+            avisos.append(
+                f"> ⚠️ Exibindo {len(amostra[0])} de {total_colunas} colunas — "
+                f"{cortadas} ficaram de fora. Para ver as demais, informe "
+                f'`columns="COL_A,COL_B"` (use `describe_table("{resolved}")` '
+                f"para conhecer os nomes)."
+            )
+        rodape = "\n\n" + "\n".join(avisos) if avisos else ""
+
+        return (
+            f"## Amostra — {resolved} ({len(amostra)} linha(s))\n\n"
+            f"{rows_to_markdown(amostra)}{rodape}"
+        )
     except Exception as e:
         return f"❌ Erro:\n```\n{str(e)}\n```"
 
