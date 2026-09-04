@@ -169,6 +169,7 @@ Busque a entidade "Parceiro"
 ## Segurança
 
 - Apenas `SELECT` é permitido — comandos DML/DDL (INSERT, UPDATE, DELETE, DROP etc.) são bloqueados
+- A validação é textual e não cobre tudo: uma função que já existe no schema com `PRAGMA AUTONOMOUS_TRANSACTION`, chamada em `SELECT pacote.funcao(x) FROM DUAL`, grava mesmo assim. Conecte sempre com um usuário Oracle sem privilégio de escrita — é a única defesa efetiva contra esse caso
 - A conexão é local — nenhum dado sai da máquina
 - Credenciais ficam no `.env` local, fora do controle de versão
 

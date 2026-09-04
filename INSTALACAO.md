@@ -385,7 +385,7 @@ SANKHYA_DB_USER=SANKHYA
 SANKHYA_DB_PASSWORD=consultar_dba
 ```
 
-> **Atenção:** O MCP permite apenas SELECT. Não há risco de alteração de dados, mas em produção consulte o DBA para obter um usuário com permissões restritas de leitura.
+> **Atenção:** O MCP permite apenas SELECT, mas a validação é textual: uma função já existente no schema com `PRAGMA AUTONOMOUS_TRANSACTION`, chamada dentro de um `SELECT`, consegue gravar apesar do bloqueio. Por isso, conecte sempre com um usuário Oracle sem privilégio de escrita — em produção, consulte o DBA para obter um usuário somente-leitura.
 
 ### Configuração por projeto (override do `.env` geral)
 
