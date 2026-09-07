@@ -585,6 +585,19 @@ def test_exemplos_das_docstrings_usam_entityname_sem_acento():
         assert "CabecalhoNota" in doc, tool.__name__
 
 
+def test_tools_avisam_nome_nao_resolvido_sem_quebrar():
+    # get_indexes chamava unresolved_name_note com `entity_rows`, mas descartava
+    # o retorno em `resolved, _`: NameError sempre que a tabela não tinha índice.
+    originais = (server.resolve_table_name, server.execute_query)
+    server.resolve_table_name = lambda nome: (nome.upper(), [])
+    server.execute_query = lambda *a, **kw: []
+    try:
+        for tool in (server.describe_table, server.get_indexes, server.get_foreign_keys):
+            assert "search_entities" in tool("NaoExiste"), tool.__name__
+    finally:
+        server.resolve_table_name, server.execute_query = originais
+
+
 if __name__ == "__main__":
     testes = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for teste in testes:

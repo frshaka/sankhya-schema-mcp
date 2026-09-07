@@ -429,7 +429,7 @@ def get_indexes(table_name: str) -> str:
       get_indexes("TGFCAB")
       get_indexes("CabecalhoNota")
     """
-    resolved, _ = resolve_table_name(table_name)
+    resolved, entity_rows = resolve_table_name(table_name)
     rows = execute_query(query("indexes"), [resolved], limit=None)
     if not rows:
         return unresolved_name_note(table_name, entity_rows) or (
