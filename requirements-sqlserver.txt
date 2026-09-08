@@ -1,0 +1,11 @@
+# Driver SQL Server — instale só se for usar SANKHYA_DB_TYPE=sqlserver:
+#   pip install -r requirements-sqlserver.txt
+#
+# Fora do requirements.txt de propósito: o servidor importa o driver dentro da
+# função de conexão, então quem usa apenas Oracle não precisa dele — e a wheel
+# do pymssql não existe para toda combinação de plataforma e versão de Python,
+# o que faria uma instalação que hoje funciona passar a falhar.
+#
+# A wheel traz o FreeTDS embutido e dispensa driver de sistema operacional, ao
+# contrário do pyodbc, que exigiria instalar o msodbcsql.
+pymssql>=2.3.0

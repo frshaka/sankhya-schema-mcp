@@ -564,11 +564,15 @@ Se houver mudanças nas dependências, reinstale:
 **Windows:**
 ```powershell
 .\.venv\Scripts\pip install -r requirements.txt
+# Somente se for usar SQL Server:
+.\.venv\Scripts\pip install -r requirements-sqlserver.txt
 ```
 
 **Linux:**
 ```bash
 .venv/bin/pip install -r requirements.txt
+# Somente se for usar SQL Server:
+.venv/bin/pip install -r requirements-sqlserver.txt
 ```
 
 Reinicie o Claude Code após a atualização.
@@ -823,6 +827,7 @@ SELECT VALUE FROM V$PARAMETER WHERE NAME = 'instance_name';
 | Instalar | `pwsh -File setup.ps1` | `bash setup.sh` |
 | Reinstalar Instant Client | `Remove-Item instantclient -Recurse -Force; pwsh -File setup.ps1` | `rm -rf instantclient/ && bash setup.sh` |
 | Reinstalar dependências | `.\.venv\Scripts\pip install -r requirements.txt` | `.venv/bin/pip install -r requirements.txt` |
+| Instalar driver do SQL Server | `.\.venv\Scripts\pip install -r requirements-sqlserver.txt` | `.venv/bin/pip install -r requirements-sqlserver.txt` |
 | Testar importação | `.\.venv\Scripts\python -c "import oracledb; print('OK')"` | `.venv/bin/python -c "import oracledb; print('OK')"` |
 | Atualizar projeto | `git pull origin main` | `git pull origin main` |
 | Ver logs do MCP | Reiniciar Claude Code com `--mcp-debug` | Reiniciar Claude Code com `--mcp-debug` |
