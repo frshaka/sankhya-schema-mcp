@@ -506,9 +506,16 @@ docker start skdev-oracle   # reiniciar
 
 #### SQL Server — `skdev-mssql`
 
+##### Criando o volume de dados
+
+Antes de iniciar o container, crie um volume para garantir a persistência dos dados:
+
 ```bash
 docker volume create skdev-mssql-volume
+```
 
+##### Iniciando o container
+```bash
 docker run -d --name skdev-mssql -p 1433:1433 -v skdev-mssql-volume:/var/opt/mssql sankhyaimages/skdev-mssql:1.1.0
 ```
 
