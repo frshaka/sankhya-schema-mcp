@@ -1017,6 +1017,9 @@ def test_workflow_de_release_dispara_em_tag_de_versao():
     assert 'tags:' in workflow and '"v*"' in workflow
     assert "release_notes.py" in workflow
     assert "gh release create" in workflow
+    # Tag reposicionada dispara o workflow de novo, e `create` falha quando o
+    # release já existe. Sem o ramo de edição, o run fica vermelho à toa.
+    assert "gh release edit" in workflow
 
 
 def test_aviso_so_aparece_quando_ha_versao_maior_publicada():

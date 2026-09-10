@@ -33,11 +33,20 @@ jobs:
           echo "--- notas de $versao ---"
           cat release-notes.md
 
-      - name: Publica o release
+      # Idempotente de propósito: uma tag reposicionada (rebase depois de a tag
+      # já ter subido, por exemplo) dispara este workflow de novo, e
+      # `gh release create` falha quando o release existe. Atualizar as notas é
+      # o comportamento certo aí — o release passa a refletir o commit novo.
+      - name: Publica ou atualiza o release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --title "$GITHUB_REF_NAME" \
-            --notes-file release-notes.md \
-            --verify-tag
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME já existe: atualizando as notas."
+            gh release edit "$GITHUB_REF_NAME" --notes-file release-notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file release-notes.md \
+              --verify-tag
+          fi

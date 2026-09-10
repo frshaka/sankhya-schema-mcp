@@ -10,6 +10,16 @@ A tool `check_updates` do próprio servidor compara a versão instalada com a
 de cada release no GitHub** são geradas a partir da seção correspondente deste
 arquivo. Uma seção vazia reprova a publicação.
 
+## [1.4.1] - 2026-09-10
+
+### Corrigido
+
+- O workflow de release falhava quando a tag era reposicionada: `gh release
+  create` recusa criar um release que já existe. Acontece de verdade — tag
+  publicada e, em seguida, rebase por causa de commit novo na `main`. Agora o
+  workflow atualiza as notas quando o release existe e só cria quando não
+  existe.
+
 ## [1.4.0] - 2026-09-10
 
 ### Adicionado
@@ -166,6 +176,7 @@ arquivo. Uma seção vazia reprova a publicação.
   `get_foreign_keys`, `get_indexes`, `run_query`, `validate_query`,
   `table_sample`, `search_entities` e `list_modules`.
 
+[1.4.1]: https://github.com/frshaka/sankhya-schema-mcp/releases/tag/v1.4.1
 [1.4.0]: https://github.com/frshaka/sankhya-schema-mcp/releases/tag/v1.4.0
 [1.3.0]: https://github.com/frshaka/sankhya-schema-mcp/releases/tag/v1.3.0
 [1.2.1]: https://github.com/frshaka/sankhya-schema-mcp/releases/tag/v1.2.1
