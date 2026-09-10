@@ -24,6 +24,15 @@ from dialects import (
     is_plan_unavailable,
     query,
 )
+from updates import (
+    PROJECT_ROOT,
+    changelog_entries,
+    format_version,
+    latest_version,
+    parse_version,
+    update_notice,
+)
+from version import __version__
 
 # Teto para buscas abertas (search_*), cujo resultado cresce com o schema inteiro
 # e não com uma tabela específica. Metadados de uma única tabela usam limit=None.
@@ -137,6 +146,90 @@ def select_columns(
     return projetadas, ausentes, cortadas
 
 
+# Tipos cujo tamanho em caracteres é informação útil. Fora deles o número é
+# ruído: no Oracle um DATE tem DATA_LENGTH 7 e um NUMBER tem 22, nenhum dos
+# dois diz nada a quem vai escrever a query.
+_TIPOS_TEXTO = ("CHAR", "TEXT")
+_TIPOS_DECIMAIS = ("NUMBER", "NUMERIC", "DECIMAL")
+
+
+def compact_type(col: dict) -> str:
+    """
+    Colapsa tipo, tamanho, precisão e escala numa célula só (`NUMBER(15,2)`).
+
+    Eram quatro colunas na saída, três delas vazias na maioria das linhas.
+    Junta-las abre espaço para a descrição e as opções sem inchar a tabela.
+
+    Vale nos dois bancos: `dialects.py` já apelida CHARACTER_MAXIMUM_LENGTH e
+    NUMERIC_PRECISION do SQL Server com os nomes do Oracle. `-1` é o
+    `varchar(max)` do SQL Server, que não tem equivalente Oracle.
+    """
+    tipo = (col.get("data_type") or "").strip()
+    if not tipo:
+        return ""
+    nome = tipo.upper()
+    tamanho, precisao, escala = (
+        col.get("data_length"),
+        col.get("data_precision"),
+        col.get("data_scale"),
+    )
+    if any(marca in nome for marca in _TIPOS_TEXTO):
+        if tamanho == -1:
+            return f"{tipo}(max)"
+        return f"{tipo}({tamanho})" if tamanho else tipo
+    if nome in _TIPOS_DECIMAIS and precisao:
+        return f"{tipo}({precisao},{escala})" if escala else f"{tipo}({precisao})"
+    return tipo
+
+
+def is_nullable(valor) -> str:
+    """
+    Normaliza o indicador de nulo: `Y`/`N` no Oracle, `YES`/`NO` no SQL Server.
+    Sem isso a mesma tabela se descreve diferente conforme o banco.
+    """
+    return "S" if str(valor or "").strip().upper().startswith("Y") else "N"
+
+
+def merge_field_dict(
+    cols: list[dict], descricoes: list[dict], opcoes: list[dict]
+) -> list[dict]:
+    """
+    Junta as colunas do catálogo com a descrição (TDDCAM) e o domínio (TDDOPC).
+
+    A junção é em Python e não em SQL porque agregar as opções numa célula
+    exigiria LISTAGG no Oracle e STRING_AGG no SQL Server — dois caminhos de
+    código para o mesmo resultado. Mesma decisão de `group_prefixes`.
+
+    As opções vêm inline, não como contagem. Um consumidor que lê apenas
+    "23 opções" ao lado de TIPMOV precisa decidir buscá-las; se não buscar,
+    escreve `TIPMOV = 'V'` (Venda) onde o pedido de venda é `P`. Valor válido,
+    resultado errado, nenhum erro levantado. Com o par valor↔rótulo na mesma
+    resposta não sobra o que adivinhar — é o motivo de esta tool existir.
+
+    Descrição do dicionário tem precedência sobre o comentário de coluna do
+    catálogo, que na base Sankhya vem vazio; a lista de dicionário ausente
+    apenas deixa a coluna em branco.
+    """
+    por_campo = {r["nomecampo"]: r.get("descrcampo") for r in descricoes or []}
+    dominios: dict[str, list[str]] = {}
+    for r in opcoes or []:
+        dominios.setdefault(r["nomecampo"], []).append(f"{r['valor']}={r['opcao']}")
+
+    linhas = []
+    for col in cols:
+        nome = col["column_name"]
+        linhas.append(
+            {
+                "campo": nome,
+                "tipo": compact_type(col),
+                "nulo": is_nullable(col.get("nullable")),
+                "descricao": por_campo.get(nome) or col.get("comments") or "",
+                "opcoes": "; ".join(dominios.get(nome, [])),
+            }
+        )
+    return linhas
+
+
 def rows_to_markdown(rows: list[dict]) -> str:
     """Converte lista de dicts para tabela Markdown."""
     if not rows:
@@ -170,6 +263,24 @@ def pick_owner(owners: set[str]) -> str:
     return conectado if conectado in owners else sorted(owners)[0]
 
 
+def dictionary_rows(nome_query: str, *params) -> list[dict]:
+    """
+    Consulta o dicionário Sankhya devolvendo lista vazia quando ele não existe
+    no schema conectado.
+
+    O enriquecimento vindo de TDDINS/TDDCAM/TDDOPC/TDDLIG é opcional por
+    definição: uma base sem o dicionário ainda descreve colunas pelo catálogo.
+    Erro que não seja "objeto não existe" sobe — falha de permissão ou de rede
+    não pode virar resposta incompleta silenciosa.
+    """
+    try:
+        return execute_query(query(nome_query), list(params), limit=None)
+    except Exception as exc:
+        if is_missing_object(exc):
+            return []
+        raise
+
+
 def resolve_table_name(name: str) -> tuple[str, list[dict]]:
     """
     Resolve EntityName (NOMEINSTANCIA) para nome de tabela via TDDINS.
@@ -180,12 +291,7 @@ def resolve_table_name(name: str) -> tuple[str, list[dict]]:
     schema conectado, degrada silenciosamente e devolve o nome cru, para não
     inviabilizar quem só quer descrever colunas de uma tabela qualquer.
     """
-    try:
-        rows = execute_query(query("resolve_table"), [name], limit=None)
-    except Exception as exc:
-        if is_missing_object(exc):
-            return name.upper(), []
-        raise
+    rows = dictionary_rows("resolve_table", name)
     if rows:
         # O banco é case-insensitive para identificador sem aspas, mas
         # `assert_safe_identifier` só aceita maiúsculas: sem o .upper() um
@@ -279,11 +385,21 @@ def assert_safe_identifier(name: str) -> Optional[str]:
 # Servidor MCP
 # ---------------------------------------------------------------------------
 
+# Consulta de atualização no boot. É o único canal que alcança o usuário sem
+# depender de alguém lembrar de perguntar: uma tool só é chamada se o cliente
+# decidir chamá-la, e ninguém pede update check espontaneamente.
+#
+# Custo: uma vez por dia (cache de 24h) o start espera até 2s pela rede. Falha
+# devolve None e o servidor sobe igual — ver `updates.py`.
+_AVISO_UPDATE = update_notice()
+
 mcp = FastMCP(
     name="sankhya-schema",
     instructions=(
-        "Servidor de exploração do schema do banco do Sankhya ERP "
-        "(Oracle ou SQL Server, conforme SANKHYA_DB_TYPE).\n\n"
+        f"Servidor de exploração do schema do banco do Sankhya ERP "
+        f"(Oracle ou SQL Server, conforme SANKHYA_DB_TYPE). Versão {__version__}.\n\n"
+        + (f"⚠️ ATUALIZAÇÃO DISPONÍVEL: {_AVISO_UPDATE}\n\n" if _AVISO_UPDATE else "")
+        +
         "AÇÃO IMEDIATA — LEIA ANTES DE QUALQUER OUTRA DECISÃO:\n"
         "Quando o usuário mencionar tabelas, campos, queries, SQL, schema, ou qualquer "
         "entidade do Sankhya (notas, produtos, parceiros, qualidade, amostras, laudos, etc.), "
@@ -295,6 +411,17 @@ mcp = FastMCP(
         "2. Identifique as tabelas relevantes → chame describe_table para cada uma\n"
         "3. Com o schema real em mãos → escreva a query\n"
         "4. NUNCA pule os passos 1 e 2. NUNCA invente nomes de tabelas ou colunas.\n\n"
+        "LITERAIS EM WHERE — REGRA ABSOLUTA:\n"
+        "Antes de escrever qualquer filtro com valor literal (`WHERE TIPMOV = 'P'`, "
+        "`STATUSNOTA = 'L'`, `ATIVO = 'S'`), chame describe_table na tabela e use "
+        "exatamente um dos valores listados na coluna `opcoes` daquele campo. "
+        "Os códigos do Sankhya são de uma letra e enganosamente parecidos: em "
+        "TGFCAB.TIPMOV, `V` é Venda e `P` é Pedido de venda; escolher pelo nome do "
+        "campo ou pelo português do pedido do usuário devolve o documento errado "
+        "sem levantar erro de SQL. O mesmo campo tem domínio DIFERENTE em tabelas "
+        "diferentes (TIPMOV existe em 17 tabelas), então consulte a tabela que a "
+        "sua query realmente usa. Se o campo não estiver em `opcoes`, ele não é "
+        "enumerado e o valor vem do dado.\n\n"
         "PROIBIÇÕES:\n"
         "- Só delegue tarefas que dependem deste MCP para subagents cuja definição inclua "
         "as tools `mcp__sankhya-schema__*`. Na dúvida, resolva no agente principal.\n"
@@ -314,9 +441,15 @@ mcp = FastMCP(
 @mcp.tool()
 def describe_table(table_name: str) -> str:
     """
-    Retorna todas as colunas de uma tabela Sankhya: nome, tipo de dado,
-    tamanho, precisão, se aceita nulo e comentário do campo.
+    Retorna todas as colunas de uma tabela Sankhya com a descrição em português
+    do dicionário e, para os campos enumerados, TODOS os valores aceitos com o
+    respectivo rótulo (ex.: TIPMOV → `P=Pedido de venda; V=Venda; C=Compra`).
     Aceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).
+
+    Chame esta tool ANTES de escrever qualquer WHERE com literal: os códigos do
+    Sankhya não são adivinháveis pelo nome do campo e vários são parecidos entre
+    si. Em TIPMOV, `V` (Venda) e `P` (Pedido de venda) são ambos válidos — usar
+    um pelo outro devolve o documento errado, sem nenhum erro de SQL.
 
     Exemplos:
       describe_table("TGFCAB")
@@ -337,8 +470,6 @@ def describe_table(table_name: str) -> str:
     owners = {r["owner"] for r in rows}
     owner = pick_owner(owners)
     rows = [r for r in rows if r["owner"] == owner]
-    for r in rows:
-        del r["owner"]
 
     header = f"## {resolved}"
     if len(owners) > 1:
@@ -350,14 +481,23 @@ def describe_table(table_name: str) -> str:
         e = entity_rows[0]
         header += f"\n**EntityName:** `{e['nomeinstancia']}` — {e['descrinstancia']}"
 
-    result = f"{header}\n\n{rows_to_markdown(rows)}\n\n_{len(rows)} coluna(s)._"
+    campos = merge_field_dict(
+        rows,
+        dictionary_rows("field_dict", resolved),
+        dictionary_rows("field_options", resolved),
+    )
+    enumerados = sum(1 for c in campos if c["opcoes"])
+    rodape = f"_{len(campos)} coluna(s)"
+    if enumerados:
+        rodape += (
+            f", {enumerados} com domínio fechado — use exatamente os valores "
+            "listados em `opcoes`, não deduza pelo nome do campo"
+        )
+    rodape += "._"
 
-    try:
-        inst_rows = execute_query(query("instances_by_table"), [resolved], limit=None)
-    except Exception as exc:
-        if not is_missing_object(exc):
-            raise
-        inst_rows = []  # dicionário Sankhya ausente: segue só com as colunas
+    result = f"{header}\n\n{rows_to_markdown(campos)}\n\n{rodape}"
+
+    inst_rows = dictionary_rows("instances_by_table", resolved)
     if inst_rows:
         result += f"\n\n## Instâncias (EntityNames) — {resolved}\n\n{rows_to_markdown(inst_rows)}"
 
@@ -411,11 +551,27 @@ def get_foreign_keys(table_name: str) -> str:
     """
     resolved, entity_rows = resolve_table_name(table_name)
     rows = execute_query(query("foreign_keys"), [resolved], limit=None)
-    if not rows:
+    ligacoes = dictionary_rows("links", resolved)
+
+    if not rows and not ligacoes:
         return unresolved_name_note(table_name, entity_rows) or (
             f"Nenhuma FK encontrada para `{resolved}`."
         )
-    return f"## Foreign Keys — {resolved}\n\n{rows_to_markdown(rows)}"
+
+    partes = []
+    if rows:
+        partes.append(
+            f"## Foreign Keys (banco) — {resolved}\n\n{rows_to_markdown(rows)}"
+        )
+    if ligacoes:
+        partes.append(
+            f"## Ligações do dicionário — {resolved}\n\n{rows_to_markdown(ligacoes)}\n\n"
+            "_Ligação do dicionário é o relacionamento que o JAPE enxerga — o nome "
+            "usado no código é o da entidade de destino. A FK acima é a restrição "
+            "física do banco. As duas listas não coincidem: há ligação sem FK e "
+            "FK sem ligação._"
+        )
+    return "\n\n".join(partes)
 
 
 @mcp.tool()
@@ -445,6 +601,11 @@ def run_query(sql: str, limit: int = 50) -> str:
     `limit` linhas formatadas como tabela Markdown.
 
     ATENÇÃO: Apenas SELECT é permitido. Queries de escrita serão bloqueadas.
+
+    Antes de filtrar por um valor literal (`WHERE TIPMOV = 'P'`), chame
+    `describe_table` na tabela e copie o valor da coluna `opcoes`. Os códigos do
+    Sankhya são de uma letra e parecidos entre si — `V` é Venda e `P` é Pedido
+    de venda —, e usar um pelo outro devolve o documento errado sem erro de SQL.
 
     A sintaxe é a do banco configurado — no Oracle use `ROWNUM <= 5`,
     no SQL Server use `SELECT TOP (5) ...`.
@@ -616,6 +777,46 @@ def list_modules() -> str:
     rows = execute_query(query("table_names"), limit=None)
     modulos = group_prefixes([r["table_name"] for r in rows])
     return f"## Módulos do Schema Sankhya\n\n{rows_to_markdown(modulos)}"
+
+
+@mcp.tool()
+def check_updates() -> str:
+    """
+    Informa se há versão mais nova deste servidor MCP publicada e o que mudou.
+
+    Compara a versão instalada com a maior tag do repositório de origem e,
+    havendo diferença, lista as entradas do CHANGELOG no intervalo e o comando
+    de atualização. Ignora o cache: a resposta é sempre a consulta de agora.
+    """
+    local = parse_version(__version__)
+    remota = latest_version(use_cache=False)
+
+    if not remota:
+        return (
+            f"Versão instalada: **{__version__}**.\n\n"
+            "⚠️ Não foi possível consultar as versões publicadas. Verifique se o "
+            "`git` está no PATH, se este diretório é um clone com `origin` "
+            "configurado e se há acesso à rede."
+        )
+    if remota <= local:
+        return f"✅ Você está na versão mais recente (**{__version__}**)."
+
+    mudancas = changelog_entries(local, remota)
+    corpo = (
+        f"## Atualização disponível\n\n"
+        f"Instalada: **{__version__}** — Publicada: **{format_version(remota)}**\n\n"
+    )
+    if mudancas:
+        corpo += f"{mudancas}\n\n"
+    return corpo + (
+        "### Como atualizar\n\n"
+        "```bash\n"
+        f"cd {PROJECT_ROOT}\n"
+        "git pull\n"
+        "```\n\n"
+        "Depois reinicie o cliente MCP. Se o `CHANGELOG` mencionar dependência "
+        "nova, rode também a instalação de dependências do `README`."
+    )
 
 
 # ---------------------------------------------------------------------------

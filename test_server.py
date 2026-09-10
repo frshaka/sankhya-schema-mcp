@@ -6,7 +6,9 @@ Execute:
     Linux:   .venv/bin/python test_server.py
 """
 
+import re
 import sys
+import tempfile
 from contextlib import contextmanager
 from decimal import Decimal
 from pathlib import Path
@@ -15,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 import dialects  # noqa: E402
 import server  # noqa: E402
+import updates  # noqa: E402
 from dialects import (  # noqa: E402
     BEGIN_READ_ONLY,
     QUERIES,
@@ -23,6 +26,8 @@ from dialects import (  # noqa: E402
     resolve_schema,
     schema_prefix,
 )
+from updates import parse_version, pick_latest  # noqa: E402
+from version import __version__  # noqa: E402
 from server import (  # noqa: E402
     assert_read_only_query,
     assert_safe_identifier,
@@ -596,6 +601,246 @@ def test_tools_avisam_nome_nao_resolvido_sem_quebrar():
             assert "search_entities" in tool("NaoExiste"), tool.__name__
     finally:
         server.resolve_table_name, server.execute_query = originais
+
+
+# --- Dicionário Sankhya: descrição e domínio -------------------------------
+
+_COL_TIPMOV = {
+    "column_name": "TIPMOV", "data_type": "VARCHAR2", "data_length": 1,
+    "data_precision": None, "data_scale": None, "nullable": "Y",
+    "comments": None, "owner": "SANKHYA",
+}
+_COL_VLRNOTA = {
+    "column_name": "VLRNOTA", "data_type": "NUMBER", "data_length": 22,
+    "data_precision": 15, "data_scale": 2, "nullable": "Y",
+    "comments": None, "owner": "SANKHYA",
+}
+
+
+def test_tipo_compacto_colapsa_quatro_colunas_em_uma():
+    assert server.compact_type(_COL_VLRNOTA) == "NUMBER(15,2)"
+    assert server.compact_type(_COL_TIPMOV) == "VARCHAR2(1)"
+    # DATE tem DATA_LENGTH 7 no Oracle e NUMBER sem precisão tem 22: número que
+    # não diz nada não entra na célula.
+    assert server.compact_type({"data_type": "DATE", "data_length": 7}) == "DATE"
+    assert server.compact_type({"data_type": "NUMBER", "data_length": 22}) == "NUMBER"
+    # Formas do SQL Server.
+    assert server.compact_type(
+        {"data_type": "varchar", "data_length": -1}
+    ) == "varchar(max)"
+    assert server.compact_type(
+        {"data_type": "int", "data_precision": 10, "data_scale": 0}
+    ) == "int"
+    assert server.compact_type({"data_type": ""}) == ""
+
+
+def test_nulo_normalizado_entre_os_dois_bancos():
+    # Oracle devolve Y/N e o SQL Server YES/NO: sem normalizar, a mesma tabela
+    # se descreve diferente conforme o banco.
+    assert server.is_nullable("Y") == "S"
+    assert server.is_nullable("YES") == "S"
+    assert server.is_nullable("N") == "N"
+    assert server.is_nullable("NO") == "N"
+    assert server.is_nullable(None) == "N"
+
+
+def test_merge_traz_as_opcoes_inline_e_nao_a_contagem():
+    # O ponto da tool: quem lê precisa ver `P=Pedido de venda` junto de `V=Venda`
+    # antes de escrever o WHERE. Só a contagem ("23 opções") deixa o consumidor
+    # adivinhar o literal, e os dois valores são válidos — erro sem erro de SQL.
+    linhas = server.merge_field_dict(
+        [_COL_TIPMOV, _COL_VLRNOTA],
+        [{"nomecampo": "TIPMOV", "descrcampo": "Tipo de Movimento"}],
+        [
+            {"nomecampo": "TIPMOV", "valor": "P", "opcao": "Pedido de venda"},
+            {"nomecampo": "TIPMOV", "valor": "V", "opcao": "Venda"},
+        ],
+    )
+    tipmov, vlrnota = linhas
+    assert tipmov["opcoes"] == "P=Pedido de venda; V=Venda"
+    assert tipmov["descricao"] == "Tipo de Movimento"
+    assert tipmov["tipo"] == "VARCHAR2(1)"
+    # Campo sem domínio não inventa opção.
+    assert vlrnota["opcoes"] == ""
+    assert list(tipmov) == ["campo", "tipo", "nulo", "descricao", "opcoes"]
+
+
+def test_merge_prefere_dicionario_ao_comentario_do_catalogo():
+    col = dict(_COL_TIPMOV, comments="comentário do catálogo")
+    com_dic = server.merge_field_dict(
+        [col], [{"nomecampo": "TIPMOV", "descrcampo": "Tipo de Movimento"}], []
+    )
+    assert com_dic[0]["descricao"] == "Tipo de Movimento"
+    # Sem dicionário, o comentário do catálogo ainda serve: há bases fora da
+    # Sankhya em que ele vem preenchido.
+    sem_dic = server.merge_field_dict([col], [], [])
+    assert sem_dic[0]["descricao"] == "comentário do catálogo"
+
+
+def test_merge_sem_dicionario_nenhum_nao_quebra():
+    linhas = server.merge_field_dict([_COL_TIPMOV], [], [])
+    assert linhas[0]["descricao"] == ""
+    assert linhas[0]["opcoes"] == ""
+    assert linhas[0]["campo"] == "TIPMOV"
+
+
+def test_dicionario_ausente_degrada_mas_erro_real_sobe():
+    original = server.execute_query
+
+    def nega(*_a, **_kw):
+        raise Exception("ORA-00942: table or view does not exist"
+                        if dialects.DB_TYPE == "oracle" else "Invalid object name 'TDDCAM'")
+
+    server.execute_query = nega
+    try:
+        assert server.dictionary_rows("field_dict", "TGFCAB") == []
+    finally:
+        server.execute_query = original
+
+    # Falha de permissão ou de rede não pode virar resposta incompleta silenciosa.
+    def quebra(*_a, **_kw):
+        raise Exception("ORA-01017: invalid username/password")
+
+    server.execute_query = quebra
+    try:
+        erro = None
+        try:
+            server.dictionary_rows("field_dict", "TGFCAB")
+        except Exception as exc:
+            erro = exc
+        assert erro is not None, "erro que não é 'objeto ausente' precisa subir"
+    finally:
+        server.execute_query = original
+
+
+def test_queries_do_dicionario_valem_nos_dois_dialetos():
+    # TDDCAM/TDDOPC/TDDLIG são tabelas da aplicação, idênticas em Oracle e SQL
+    # Server: a mesma query serve aos dois, só o placeholder muda.
+    for dialeto in ("oracle", "sqlserver"):
+        for nome in ("field_dict", "field_options", "links"):
+            assert nome in QUERIES[dialeto], f"{nome} ausente em {dialeto}"
+
+
+def test_opcoes_tem_a_mesma_ordem_nos_dois_bancos():
+    # ORDEM é nula na maioria das linhas de TDDOPC e os bancos discordam sobre
+    # onde o nulo entra na ordenação: Oracle joga para o fim, SQL Server para o
+    # começo. Sem o CASE, a mesma tabela sai em ordem diferente conforme o banco.
+    for dialeto in ("oracle", "sqlserver"):
+        sql = QUERIES[dialeto]["field_options"]
+        assert "CASE WHEN o.ORDEM IS NULL" in sql, dialeto
+
+
+def test_dicionario_qualifica_schema_e_bind_nos_dois_bancos():
+    # Sem o prefixo de schema o banco resolve TDDCAM no schema do usuário
+    # conectado, que num login somente-leitura não é o dono das tabelas.
+    schema_original, dialeto_original = dialects.DB_CONFIG["schema"], dialects.DB_TYPE
+    dialects.DB_CONFIG["schema"] = "SANKHYA"
+    try:
+        for dialeto, bind in (("oracle", ":1"), ("sqlserver", "%s")):
+            dialects.DB_TYPE = dialeto
+            for nome in ("field_dict", "field_options", "links"):
+                sql = dialects.query(nome)
+                assert "{" not in sql, f"{nome}/{dialeto}: sobrou placeholder"
+                assert "SANKHYA.TDD" in sql, f"{nome}/{dialeto}"
+                # Um bind por placeholder: o pymssql não reaproveita `%s`.
+                assert sql.count(bind) == 1, f"{nome}/{dialeto}"
+    finally:
+        dialects.DB_CONFIG["schema"] = schema_original
+        dialects.DB_TYPE = dialeto_original
+
+
+# --- Versão e aviso de atualização -----------------------------------------
+
+
+def test_versao_bate_com_o_topo_do_changelog():
+    # É o mesmo par que `tools/release.sh` valida antes de criar a tag: versão
+    # dessincronizada faz o `check_updates` anunciar mudança ilegível.
+    changelog = (Path(__file__).parent / "CHANGELOG.md").read_text(encoding="utf-8")
+    topo = re.search(r"^##\s+\[?v?(\d+(?:\.\d+)*)\]?", changelog, re.MULTILINE)
+    assert topo, "CHANGELOG.md sem nenhuma seção de versão"
+    assert topo.group(1) == __version__
+
+
+def test_versao_normaliza_para_tres_posicoes():
+    # As tags antigas deste repositório têm duas posições (v1.1): sem completar
+    # com zero, `1.1` e `1.1.0` comparariam diferente.
+    assert parse_version("v1.1") == parse_version("1.1.0") == (1, 1, 0)
+    assert parse_version("1.2.3") == (1, 2, 3)
+    assert parse_version("1.2.0") > parse_version("1.1.9")
+    assert parse_version("beta") is None
+    assert parse_version("") is None
+
+
+def test_maior_tag_ignora_ref_que_nao_e_versao():
+    refs = [
+        "aaa\trefs/tags/v1.0",
+        "bbb\trefs/tags/v1.2.0",
+        "ccc\trefs/tags/v1.2.0^{}",   # tag anotada: o git lista o objeto também
+        "ddd\trefs/tags/beta",
+        "eee\trefs/heads/main",
+    ]
+    assert pick_latest(refs) == (1, 2, 0)
+    assert pick_latest([]) is None
+    assert pick_latest(["aaa\trefs/tags/nightly"]) is None
+
+
+def test_changelog_recorta_apenas_o_intervalo_pedido():
+    with tempfile.TemporaryDirectory() as tmp:
+        arquivo = Path(tmp) / "CHANGELOG.md"
+        arquivo.write_text(
+            "# Changelog\n\n"
+            "## [1.3.0] - 2026-01-03\n- terceira\n\n"
+            "## [1.2.0] - 2026-01-02\n- segunda\n\n"
+            "## [1.1.0] - 2026-01-01\n- primeira\n",
+            encoding="utf-8",
+        )
+        original = updates._CHANGELOG
+        updates._CHANGELOG = arquivo
+        try:
+            trecho = updates.changelog_entries((1, 1, 0), (1, 3, 0))
+            assert "terceira" in trecho and "segunda" in trecho
+            assert "primeira" not in trecho, "o limite inferior é exclusivo"
+            assert updates.changelog_entries((1, 3, 0), (1, 3, 0)) == ""
+            # CHANGELOG ausente não pode derrubar o aviso.
+            updates._CHANGELOG = Path(tmp) / "nao-existe.md"
+            assert updates.changelog_entries((1, 0, 0), (9, 9, 9)) == ""
+        finally:
+            updates._CHANGELOG = original
+
+
+def test_aviso_so_aparece_quando_ha_versao_maior_publicada():
+    original = updates.latest_version
+    try:
+        local = parse_version(__version__)
+        maior = (local[0], local[1], local[2] + 1)
+
+        updates.latest_version = lambda use_cache=True: maior
+        assert updates.update_notice() is not None
+
+        updates.latest_version = lambda use_cache=True: local
+        assert updates.update_notice() is None
+
+        # Offline, git ausente ou remote inacessível: sem aviso, sem exceção.
+        updates.latest_version = lambda use_cache=True: None
+        assert updates.update_notice() is None
+
+        def explode(use_cache=True):
+            raise OSError("sem rede")
+
+        updates.latest_version = explode
+        assert updates.update_notice() is None, "falha de rede não pode derrubar o boot"
+    finally:
+        updates.latest_version = original
+
+
+def test_instrucoes_exigem_consultar_dominio_antes_do_literal():
+    # A regra é o que impede o modelo de deduzir `TIPMOV = 'V'` para "venda"
+    # quando pedido de venda é 'P'. Se ela sair das instruções, o servidor volta
+    # a depender de sorte.
+    instrucoes = server.mcp.instructions
+    assert "LITERAIS EM WHERE" in instrucoes
+    assert "describe_table" in instrucoes
+    assert "opcoes" in instrucoes
 
 
 if __name__ == "__main__":

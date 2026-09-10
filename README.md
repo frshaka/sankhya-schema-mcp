@@ -17,16 +17,37 @@ A escolha é feita por `SANKHYA_DB_TYPE` no `.env` — veja [Configuração do b
 
 | Tool | O que faz |
 |------|-----------|
-| `describe_table` | Retorna colunas, tipos de dados, nullable e comentários de uma tabela |
+| `describe_table` | Colunas, tipos, nullable, **descrição em português** e **todos os valores aceitos** dos campos enumerados |
 | `search_tables` | Busca tabelas por nome parcial (ex: `TGF`, `TSIUSU`) |
 | `search_columns` | Descobre em quais tabelas existe determinado campo (ex: `CODPARC`) |
 | `search_entities` | Busca EntityNames (instâncias Sankhya) por nome ou descrição |
-| `get_foreign_keys` | Lista relacionamentos (FK) de entrada e saída de uma tabela |
+| `get_foreign_keys` | FKs do banco **e** as ligações lógicas do dicionário (as que o JAPE enxerga) |
 | `get_indexes` | Mostra índices e suas colunas |
 | `run_query` | Executa SELECT e retorna resultado formatado (somente leitura) |
 | `validate_query` | Valida sintaxe SQL sem executar (EXPLAIN PLAN no Oracle, SHOWPLAN_ALL no SQL Server) |
 | `table_sample` | Retorna amostra de dados reais da tabela |
 | `list_modules` | Visão geral dos módulos Sankhya por prefixo de tabela |
+| `check_updates` | Diz se há versão mais nova publicada e o que mudou |
+
+### Por que `describe_table` traz os valores dos campos
+
+O comentário de coluna do catálogo vem **vazio** na base Sankhya (0 de 69.782
+colunas medidas). A semântica mora no dicionário da aplicação, e é de lá que a
+tool tira a descrição (`TDDCAM`) e o domínio dos campos enumerados (`TDDOPC`):
+
+```
+| campo  | tipo        | nulo | descricao         | opcoes                                    |
+| TIPMOV | VARCHAR2(1) | S    | Tipo de Movimento | P=Pedido de venda; V=Venda; C=Compra; ... |
+```
+
+Sem isso, quem escreve a query precisa adivinhar o literal do `WHERE`. Em
+`TGFCAB.TIPMOV`, `V` (Venda) e `P` (Pedido de venda) são **ambos válidos** —
+trocar um pelo outro devolve o documento errado sem levantar nenhum erro de
+SQL. E o mesmo nome de campo tem domínio diferente em tabelas diferentes:
+`TIPMOV` existe em 17 tabelas, com de 2 a 24 opções cada.
+
+Por isso a saída não é resumida nem truncada: assertividade da resposta vem
+antes de economia de tokens.
 
 ---
 
@@ -232,7 +253,14 @@ Nome de tabela sem qualificação é resolvido no schema do usuário conectado �
 |---|---|
 | `table_sample` | `ORA-00942` no Oracle, `Invalid object name` no SQL Server |
 | `search_entities` | falha ao ler `TDDINS` |
-| `describe_table`, `get_indexes`, `get_foreign_keys` | funcionam, mas **perdem** a tradução de EntityName (`describe_table("CabecalhoNota")`) sem exibir erro |
+| `describe_table` | funciona, mas **perde** a tradução de EntityName, a descrição em português dos campos e os valores dos campos enumerados — sem exibir erro |
+| `get_foreign_keys` | funciona, mas **perde** as ligações lógicas do dicionário; as FKs do banco continuam |
+| `get_indexes` | funciona, mas **perde** a tradução de EntityName |
+
+> ⚠️ Sem o dicionário acessível, `describe_table` deixa de mostrar os domínios
+> (`TIPMOV = P-Pedido de venda; V-Venda; …`) e quem escreve a query volta a ter
+> que adivinhar o literal do `WHERE`. Configurar `SANKHYA_DB_SCHEMA` não é
+> cosmético.
 
 As demais tools leem as views de catálogo (`ALL_TAB_COLUMNS`/`INFORMATION_SCHEMA.COLUMNS`, `ALL_TABLES`/`INFORMATION_SCHEMA.TABLES`, …), que listam tudo que o usuário consegue ver independente do schema corrente, e não são afetadas.
 
@@ -300,9 +328,11 @@ As tools respondem a mesma coisa nos dois bancos, lendo catálogos diferentes:
 
 Notas:
 
-- O **dicionário Sankhya (`TDDINS`)** é tabela da aplicação, não do catálogo: as queries que o usam (`describe_table`, `search_entities`, resolução de EntityName) são idênticas nos dois bancos — só o placeholder de bind muda (`:1` no Oracle, `%s` no `pymssql`).
-- **Comentários de coluna vêm vazios no SQL Server** nas bases de desenvolvimento distribuídas pela Sankhya (nenhuma `MS_Description` cadastrada). A coluna aparece em branco, sem erro.
-- `NULLABLE` sai como `Y`/`N` no Oracle e `YES`/`NO` no SQL Server, e `DATA_LENGTH` vem nulo para tipos numéricos do SQL Server — o catálogo de origem é diferente, os valores refletem isso.
+- O **dicionário Sankhya (`TDDINS`, `TDDCAM`, `TDDOPC`, `TDDLIG`)** é da aplicação, não do catálogo: as queries que o usam (`describe_table`, `get_foreign_keys`, `search_entities`, resolução de EntityName) são idênticas nos dois bancos — só o placeholder de bind muda (`:1` no Oracle, `%s` no `pymssql`).
+- As opções de campo **não são agregadas em SQL**: `LISTAGG` (Oracle) e `STRING_AGG` (SQL Server) divergem, então a junção campo↔domínio acontece em Python, como já era feito no `list_modules`. Um caminho de código só para os dois bancos.
+- `TDDOPC.ORDEM` é nula na maioria das linhas e os bancos discordam sobre onde o nulo entra na ordenação (Oracle joga para o fim, SQL Server para o começo). A query força a mesma ordem nos dois com um `CASE`.
+- **Comentários de coluna vêm vazios nos dois bancos** nas bases distribuídas pela Sankhya (0 de 69.782 colunas no Oracle; nenhuma `MS_Description` no SQL Server). É por isso que a descrição exibida vem do dicionário, com o comentário do catálogo apenas como reserva.
+- `NULLABLE` sai como `Y`/`N` no Oracle e `YES`/`NO` no SQL Server; a saída **normaliza para `S`/`N`** nos dois. Tipo, tamanho, precisão e escala são colapsados numa célula só (`NUMBER(15,2)`, `varchar(max)`), o que também esconde a diferença entre `DATA_LENGTH` e `CHARACTER_MAXIMUM_LENGTH`.
 - `list_modules` agrupa pelo **prefixo de 3 caracteres** (`TGFCAB`, `TGFITE` e `TGFPAR` contam para `TGF`), que é a convenção de nomenclatura do Sankhya; tabelas customizadas caem em `AD_`. Prefixo com uma tabela só fica de fora.
 - O **schema** é tratado como dado nos dois bancos, nunca fixado na query: na base `jiva` distribuída pela Sankhya as tabelas ficam em `SANKHYA` (não em `dbo`). Quando a mesma tabela aparece em mais de um schema, o `describe_table` escolhe o do usuário conectado e avisa onde mais ela existe.
 
@@ -314,7 +344,12 @@ Notas:
 sankhya-schema-mcp/
 ├── src/
 │   ├── server.py          # Servidor MCP: tools, formatação e validação
-│   └── dialects.py        # Queries, conexão e transação por banco (Oracle/SQL Server)
+│   ├── dialects.py        # Queries, conexão e transação por banco (Oracle/SQL Server)
+│   ├── updates.py         # Consulta de versão publicada e aviso de atualização
+│   └── version.py         # Versão do projeto (fonte única)
+├── tools/
+│   ├── release.sh         # Validador de publicação (Linux/macOS)
+│   └── release.ps1        # Validador de publicação (Windows)
 ├── instantclient/         # Oracle Instant Client (baixado pelo setup)
 ├── .venv/                 # Ambiente virtual Python (criado pelo setup)
 ├── .env                   # Credenciais do banco (não versionado)
@@ -326,8 +361,57 @@ sankhya-schema-mcp/
 ├── requirements.txt       # Dependências Python (Oracle, padrão)
 ├── requirements-sqlserver.txt  # Driver do SQL Server (opcional)
 ├── test_server.py         # Autoteste das funções puras (não requer banco)
+├── CHANGELOG.md           # Histórico de versões
 └── INSTALACAO.md          # Guia detalhado de instalação
 ```
+
+---
+
+## Versões e atualização
+
+A versão instalada fica em `src/version.py` e o histórico em
+[`CHANGELOG.md`](CHANGELOG.md). Cada release é publicada como tag `vX.Y.Z`.
+
+### Como saber que saiu versão nova
+
+O servidor consulta as tags publicadas **no boot** e, havendo versão maior,
+avisa você na primeira resposta da conversa. A consulta tem cache de 24h e
+timeout de 2s; sem rede, sem `git` ou sem acesso ao repositório, o servidor
+sobe normalmente e apenas não avisa.
+
+Para consultar na hora, com o detalhe do que mudou:
+
+```
+check_updates
+```
+
+### Como atualizar
+
+```bash
+cd <pasta-do-mcp>
+git pull
+```
+
+Depois reinicie o cliente MCP. Se o CHANGELOG mencionar dependência nova, rode
+também a instalação de dependências.
+
+### Publicando uma versão (mantenedor)
+
+```bash
+# Linux/macOS
+tools/release.sh            # valida e cria a tag localmente
+tools/release.sh --push     # valida, cria e publica
+
+# Windows
+pwsh tools/release.ps1
+pwsh tools/release.ps1 -Push
+```
+
+O script recusa publicar quando a working tree está suja, quando
+`src/version.py` diverge do topo do CHANGELOG, quando a tag já existe (local ou
+no `origin`) ou quando os testes falham. Publicar exige o passo explícito
+(`--push`/`-Push`): uma tag no `origin` é irreversível na prática, porque outro
+clone pode já tê-la buscado.
 
 ---
 

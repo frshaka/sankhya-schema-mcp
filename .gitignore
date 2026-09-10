@@ -21,3 +21,6 @@ instantclient/
 # Arquivos de sistema
 .DS_Store
 Thumbs.db
+
+# Cache do aviso de atualizacao — estado local, nunca versionado
+.update-check.json

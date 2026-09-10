@@ -552,7 +552,26 @@ Deve retornar as colunas, tipos e comentários da tabela de cabeçalho de notas.
 
 ## Atualização
 
-Para atualizar o projeto com a versão mais recente:
+### Como você fica sabendo que saiu versão nova
+
+Não precisa acompanhar o repositório. O servidor consulta as versões
+publicadas **no boot** e, quando existe uma maior que a instalada, avisa você
+na primeira resposta da conversa.
+
+A consulta usa `git ls-remote` com cache de 24h e timeout de 2 segundos. Sem
+rede, sem `git` no PATH ou sem acesso ao repositório, o servidor sobe
+normalmente — apenas não avisa.
+
+Para perguntar na hora e ver o que mudou, peça ao assistente:
+
+```
+check_updates
+```
+
+A resposta traz a versão instalada, a publicada, as entradas do
+[`CHANGELOG.md`](CHANGELOG.md) no intervalo e o comando de atualização.
+
+### Atualizando
 
 ```bash
 cd sankhya-schema-mcp

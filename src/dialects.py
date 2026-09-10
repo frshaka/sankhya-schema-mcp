@@ -35,12 +35,16 @@ _BIND = {
 
 
 # ---------------------------------------------------------------------------
-# Queries do dicionário Sankhya (TDDINS)
+# Queries do dicionário Sankhya (TDDINS, TDDCAM, TDDOPC, TDDLIG)
 # ---------------------------------------------------------------------------
-# TDDINS é tabela da aplicação, não do catálogo: idêntica nos dois bancos.
-# Só o placeholder muda, então estas três não são duplicadas por dialeto.
+# São tabelas da aplicação, não do catálogo: criadas pelo instalador do Sankhya
+# e idênticas nos dois bancos. Só o placeholder muda, então não são duplicadas
+# por dialeto.
+#
+# Nenhuma delas agrega em SQL (LISTAGG × STRING_AGG divergem): quem junta campo
+# com opção é `merge_field_dict`, em Python, pela mesma razão de `group_prefixes`.
 
-_TDDINS_QUERIES = {
+_DICIONARIO_QUERIES = {
     "resolve_table": """
         SELECT NOMETAB, NOMEINSTANCIA, DESCRINSTANCIA, RAIZ, NUINSTANCIAPAI
         FROM {schema}TDDINS
@@ -74,6 +78,48 @@ _TDDINS_QUERIES = {
           AND ATIVO = 'S'
           {filtro}
         ORDER BY RAIZ DESC, NOMETAB, NOMEINSTANCIA
+    """,
+    # Descrição em português de cada campo. Na base Sankhya o comentário de
+    # coluna do catálogo vem vazio (0 de 69.782 colunas medidas), então é daqui
+    # que sai a semântica: sem ela o consumidor só tem o nome do campo.
+    "field_dict": """
+        SELECT NOMECAMPO, DESCRCAMPO
+        FROM {schema}TDDCAM
+        WHERE NOMETAB = {p1}
+    """,
+    # Domínio dos campos enumerados (TIPMOV = P-Pedido de venda, V-Venda, ...).
+    # É o dado que impede o consumidor de adivinhar o literal do WHERE.
+    #
+    # ORDEM é nula em 17.271 das 24.264 linhas, e banco nenhum concorda sobre
+    # onde o nulo entra na ordenação: o Oracle joga para o fim, o SQL Server
+    # para o começo. O CASE força a mesma ordem nos dois.
+    "field_options": """
+        SELECT c.NOMECAMPO, o.VALOR, o.OPCAO
+        FROM {schema}TDDCAM c
+        JOIN {schema}TDDOPC o ON o.NUCAMPO = c.NUCAMPO
+        WHERE c.NOMETAB = {p1}
+        ORDER BY c.NOMECAMPO,
+                 CASE WHEN o.ORDEM IS NULL THEN 1 ELSE 0 END,
+                 o.ORDEM,
+                 o.VALOR
+    """,
+    # Ligações lógicas entre instâncias. É o relacionamento que o JAPE enxerga
+    # (`nota.asDynamicVO("Parceiro")`), e não coincide com a FK física: o nome
+    # usado no código é o da instância de destino, porque NOMELIGACAO só vem
+    # preenchido em 102 das 7.616 ligações.
+    "links": """
+        SELECT
+            o.NOMEINSTANCIA AS entidade_origem,
+            l.NOMELIGACAO   AS nome_ligacao,
+            d.NOMEINSTANCIA AS entidade_destino,
+            d.NOMETAB       AS tabela_destino
+        FROM {schema}TDDLIG l
+        JOIN {schema}TDDINS o ON o.NUINSTANCIA = l.NUINSTORIG
+        JOIN {schema}TDDINS d ON d.NUINSTANCIA = l.NUINSTDEST
+        WHERE o.NOMETAB = {p1}
+          AND o.ATIVO = 'S'
+          AND d.ATIVO = 'S'
+        ORDER BY o.NOMEINSTANCIA, d.NOMEINSTANCIA
     """,
 }
 
@@ -310,8 +356,8 @@ _MSSQL_QUERIES = {
 
 
 QUERIES = {
-    "oracle":    {**_TDDINS_QUERIES, **_ORACLE_QUERIES},
-    "sqlserver": {**_TDDINS_QUERIES, **_MSSQL_QUERIES},
+    "oracle":    {**_DICIONARIO_QUERIES, **_ORACLE_QUERIES},
+    "sqlserver": {**_DICIONARIO_QUERIES, **_MSSQL_QUERIES},
 }
 
 
