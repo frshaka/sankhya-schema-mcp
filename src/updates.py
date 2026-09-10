@@ -135,6 +135,35 @@ def latest_version(use_cache: bool = True) -> Optional[tuple]:
     return remota
 
 
+def changelog_sections() -> list[tuple]:
+    """
+    Todas as seções de versão do CHANGELOG, como `(versão, texto)`.
+
+    Parser único: quem quer um intervalo (`changelog_entries`, para o aviso de
+    atualização) e quem quer uma versão só (`changelog_section`, para as notas
+    do release no GitHub) filtram esta lista. CHANGELOG ausente devolve lista
+    vazia — nenhum dos dois consumidores pode quebrar por causa disso.
+    """
+    try:
+        texto = _CHANGELOG.read_text(encoding="utf-8")
+    except OSError:
+        return []
+
+    secoes, atual, versao_atual = [], [], None
+    for linha in texto.splitlines():
+        cabecalho = re.match(r"^##\s+\[?v?(\d+(?:\.\d+)*)\]?", linha)
+        if cabecalho:
+            if versao_atual:
+                secoes.append((versao_atual, "\n".join(atual).rstrip()))
+            versao_atual = parse_version(cabecalho.group(1))
+            atual = [linha]
+        elif versao_atual:
+            atual.append(linha)
+    if versao_atual:
+        secoes.append((versao_atual, "\n".join(atual).rstrip()))
+    return secoes
+
+
 def changelog_entries(de: tuple, ate: tuple) -> str:
     """
     Trecho do CHANGELOG entre duas versões, `de` exclusivo e `ate` inclusivo.
@@ -142,25 +171,24 @@ def changelog_entries(de: tuple, ate: tuple) -> str:
     Serve para o aviso dizer *o que* mudou, não só que mudou. CHANGELOG ausente
     ou sem seção no intervalo devolve string vazia — o aviso continua válido.
     """
-    try:
-        texto = _CHANGELOG.read_text(encoding="utf-8")
-    except OSError:
-        return ""
-
-    blocos, atual, versao_atual = [], [], None
-    for linha in texto.splitlines():
-        cabecalho = re.match(r"^##\s+\[?v?(\d+(?:\.\d+)*)\]?", linha)
-        if cabecalho:
-            if versao_atual and de < versao_atual <= ate:
-                blocos.append("\n".join(atual).rstrip())
-            versao_atual = parse_version(cabecalho.group(1))
-            atual = [linha]
-        elif versao_atual:
-            atual.append(linha)
-    if versao_atual and de < versao_atual <= ate:
-        blocos.append("\n".join(atual).rstrip())
-
+    blocos = [txt for versao, txt in changelog_sections() if de < versao <= ate]
     return "\n\n".join(blocos).strip()
+
+
+def changelog_section(versao: tuple) -> str:
+    """
+    Seção de uma única versão, já sem a linha de cabeçalho.
+
+    É o corpo das notas do release no GitHub: o título do release é a própria
+    tag, então repetir `## [1.2.0] - data` no corpo seria redundante. Versão
+    sem seção devolve string vazia, e é isso que faz o validador de publicação
+    recusar a tag — release sem nota não diz ao cliente o que mudou.
+    """
+    for atual, texto in changelog_sections():
+        if atual == versao:
+            corpo = texto.split("\n", 1)[1] if "\n" in texto else ""
+            return corpo.strip()
+    return ""
 
 
 def update_notice(use_cache: bool = True) -> Optional[str]:

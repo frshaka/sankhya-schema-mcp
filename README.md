@@ -397,6 +397,14 @@ também a instalação de dependências.
 
 ### Publicando uma versão (mantenedor)
 
+**Toda release publica release notes.** É padrão do projeto, e o processo
+recusa publicar sem elas.
+
+1. Escreva a seção da nova versão no [`CHANGELOG.md`](CHANGELOG.md), no topo,
+   descrevendo o que mudou.
+2. Atualize `__version__` em `src/version.py` com a mesma versão.
+3. Rode o validador:
+
 ```bash
 # Linux/macOS
 tools/release.sh            # valida e cria a tag localmente
@@ -407,11 +415,36 @@ pwsh tools/release.ps1
 pwsh tools/release.ps1 -Push
 ```
 
-O script recusa publicar quando a working tree está suja, quando
-`src/version.py` diverge do topo do CHANGELOG, quando a tag já existe (local ou
-no `origin`) ou quando os testes falham. Publicar exige o passo explícito
-(`--push`/`-Push`): uma tag no `origin` é irreversível na prática, porque outro
-clone pode já tê-la buscado.
+O script recusa publicar quando:
+
+| Guard | Motivo |
+|---|---|
+| working tree suja | arquivo não commitado não entra na tag |
+| `src/version.py` ≠ topo do CHANGELOG | a nota publicada não seria a da versão |
+| **seção da versão vazia** | release sem nota não diz ao cliente o que mudou |
+| tag já existe (local ou `origin`) | remarcar tag some com a diferença para quem já atualizou |
+| testes falhando | última porta antes de a versão virar pública |
+
+Publicar exige o passo explícito (`--push`/`-Push`): uma tag no `origin` é
+irreversível na prática, porque outro clone pode já tê-la buscado.
+
+### Como as release notes são geradas
+
+O push de uma tag `v*` dispara [`.github/workflows/release.yml`], que extrai a
+seção correspondente do CHANGELOG e publica o release no GitHub com ela como
+corpo. O gatilho é a **tag**, não o script: uma tag empurrada à mão
+(`git push origin v1.3.0`) também gera as notas.
+
+O CHANGELOG é a fonte única — o mesmo texto alimenta o release no GitHub e a
+tool `check_updates`. Se a seção estiver ausente ou vazia, o workflow falha em
+vez de publicar um release sem explicação.
+
+```bash
+# Ver as notas de uma versão sem publicar nada
+python tools/release_notes.py 1.2.1
+```
+
+[`.github/workflows/release.yml`]: .github/workflows/release.yml
 
 ---
 

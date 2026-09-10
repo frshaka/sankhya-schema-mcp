@@ -48,19 +48,25 @@ TOPO="$(grep -m1 -oE '^## \[?v?[0-9]+(\.[0-9]+)*\]?' CHANGELOG.md | grep -oE '[0
 [ -n "$TOPO" ] || falhar "não encontrei nenhuma seção de versão no CHANGELOG.md."
 [ "$TOPO" = "$VERSAO" ] || falhar "src/version.py diz $VERSAO e o topo do CHANGELOG diz $TOPO. Sincronize os dois."
 
-# 4. Tag ainda não pode existir, nem aqui nem no origin. Remarcar uma tag já
+# 4. A seção precisa ter conteúdo, não só o cabeçalho. É o texto que vira as
+#    notas do release no GitHub: release sem nota não diz ao cliente o que
+#    mudou, que é justamente o problema que o versionamento veio resolver.
+"$PY" tools/release_notes.py "$VERSAO" >/dev/null || falhar "a seção $VERSAO do CHANGELOG está vazia. Descreva o que mudou antes de publicar."
+
+# 5. Tag ainda não pode existir, nem aqui nem no origin. Remarcar uma tag já
 #    publicada faz o cliente que já atualizou nunca mais ver a diferença.
 ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null || falhar "a tag $TAG já existe localmente."
 if git ls-remote --exit-code --tags origin "$TAG" >/dev/null 2>&1; then
     falhar "a tag $TAG já existe no origin."
 fi
 
-# 5. Testes. Última porta antes de a versão virar pública.
+# 6. Testes. Última porta antes de a versão virar pública.
 echo "Rodando os testes..."
 "$PY" test_server.py || falhar "os testes falharam. Nada foi publicado."
 
 git tag -a "$TAG" -m "$TAG"
 echo "Tag $TAG criada localmente."
+echo "As notas do release sairao do CHANGELOG quando a tag chegar ao origin."
 
 if [ "$PUSH" = "1" ]; then
     git push origin "$TAG"

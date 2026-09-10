@@ -6,7 +6,31 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [SemVer](https://semver.org/lang/pt-BR/).
 
 A tool `check_updates` do próprio servidor compara a versão instalada com a
-última publicada e mostra as entradas deste arquivo no intervalo.
+última publicada e mostra as entradas deste arquivo no intervalo, e as **notas
+de cada release no GitHub** são geradas a partir da seção correspondente deste
+arquivo. Uma seção vazia reprova a publicação.
+
+## [1.2.1] - 2026-09-10
+
+### Adicionado
+
+- Release notes automáticas: o push de uma tag `v*` dispara o workflow
+  `.github/workflows/release.yml`, que publica o release no GitHub com a seção
+  correspondente deste CHANGELOG como corpo. Vale para qualquer tag, inclusive
+  a empurrada à mão, porque o gatilho é a tag e não o script de publicação.
+- `tools/release_notes.py`: imprime as notas de uma versão. Usado pelo workflow
+  e pelos validadores locais.
+
+### Alterado
+
+- `tools/release.sh` e `tools/release.ps1` passaram a recusar a tag quando a
+  seção da versão no CHANGELOG está vazia ou só tem o cabeçalho. Antes bastava
+  a versão do topo bater com `src/version.py`, o que deixava passar uma release
+  sem nenhuma explicação do que mudou.
+- Parser do CHANGELOG refatorado em `changelog_sections()`, com
+  `changelog_entries()` (intervalo, para o aviso de atualização) e
+  `changelog_section()` (versão única, para as notas do release) filtrando o
+  mesmo resultado. Um parser só para os dois consumidores.
 
 ## [1.2.0] - 2026-09-10
 
@@ -96,6 +120,7 @@ A tool `check_updates` do próprio servidor compara a versão instalada com a
   `get_foreign_keys`, `get_indexes`, `run_query`, `validate_query`,
   `table_sample`, `search_entities` e `list_modules`.
 
+[1.2.1]: https://github.com/frshaka/sankhya-schema-mcp/releases/tag/v1.2.1
 [1.2.0]: https://github.com/frshaka/sankhya-schema-mcp/releases/tag/v1.2.0
 [1.1.0]: https://github.com/frshaka/sankhya-schema-mcp/releases/tag/v1.1
 [1.0.0]: https://github.com/frshaka/sankhya-schema-mcp/releases/tag/v1.0

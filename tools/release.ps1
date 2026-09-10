@@ -45,20 +45,29 @@ if ($topo -ne $versao) {
     Falhar "src/version.py diz $versao e o topo do CHANGELOG diz $topo. Sincronize os dois."
 }
 
-# 4. Tag nao pode existir, nem aqui nem no origin: remarcar tag publicada faz
+# 4. A secao precisa ter conteudo, nao so o cabecalho. E o texto que vira as
+#    notas do release no GitHub: release sem nota nao diz ao cliente o que
+#    mudou, que e justamente o problema que o versionamento veio resolver.
+& $py tools/release_notes.py $versao *> $null
+if ($LASTEXITCODE -ne 0) {
+    Falhar "a secao $versao do CHANGELOG esta vazia. Descreva o que mudou antes de publicar."
+}
+
+# 5. Tag nao pode existir, nem aqui nem no origin: remarcar tag publicada faz
 #    quem ja atualizou nunca mais ver a diferenca.
 git rev-parse -q --verify "refs/tags/$tag" *> $null
 if ($LASTEXITCODE -eq 0) { Falhar "a tag $tag ja existe localmente." }
 git ls-remote --exit-code --tags origin $tag *> $null
 if ($LASTEXITCODE -eq 0) { Falhar "a tag $tag ja existe no origin." }
 
-# 5. Testes. Ultima porta antes de a versao virar publica.
+# 6. Testes. Ultima porta antes de a versao virar publica.
 Write-Host "Rodando os testes..."
 & $py test_server.py
 if ($LASTEXITCODE -ne 0) { Falhar "os testes falharam. Nada foi publicado." }
 
 git tag -a $tag -m $tag
 Write-Host "Tag $tag criada localmente."
+Write-Host "As notas do release sairao do CHANGELOG quando a tag chegar ao origin."
 
 if ($Push) {
     git push origin $tag

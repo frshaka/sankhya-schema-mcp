@@ -808,6 +808,65 @@ def test_changelog_recorta_apenas_o_intervalo_pedido():
             updates._CHANGELOG = original
 
 
+def test_secao_de_uma_versao_sai_sem_o_cabecalho():
+    # É o corpo das notas do release no GitHub. O título do release já é a
+    # tag, então repetir "## [1.2.0] - data" no corpo seria redundante.
+    with tempfile.TemporaryDirectory() as tmp:
+        arquivo = Path(tmp) / "CHANGELOG.md"
+        arquivo.write_text(
+            "# Changelog\n\n"
+            "## [1.3.0] - 2026-01-03\n\n### Adicionado\n- coisa nova\n\n"
+            "## [1.2.0] - 2026-01-02\n\n### Corrigido\n- bug antigo\n",
+            encoding="utf-8",
+        )
+        original = updates._CHANGELOG
+        updates._CHANGELOG = arquivo
+        try:
+            notas = updates.changelog_section((1, 3, 0))
+            assert notas.startswith("### Adicionado")
+            assert "coisa nova" in notas
+            assert "## [1.3.0]" not in notas
+            assert "bug antigo" not in notas, "não pode vazar a seção seguinte"
+            # Versão sem seção é o que faz o validador recusar a publicação.
+            assert updates.changelog_section((9, 9, 9)) == ""
+        finally:
+            updates._CHANGELOG = original
+
+
+def test_secao_so_com_cabecalho_conta_como_vazia():
+    # Cabeçalho sem corpo passaria no check de "topo bate com a versão" e
+    # publicaria um release sem explicação nenhuma.
+    with tempfile.TemporaryDirectory() as tmp:
+        arquivo = Path(tmp) / "CHANGELOG.md"
+        arquivo.write_text("# Changelog\n\n## [1.4.0] - 2026-01-04\n\n", encoding="utf-8")
+        original = updates._CHANGELOG
+        updates._CHANGELOG = arquivo
+        try:
+            assert updates.changelog_section((1, 4, 0)) == ""
+        finally:
+            updates._CHANGELOG = original
+
+
+def test_release_notes_da_versao_atual_tem_conteudo():
+    # Mesmo guard que `tools/release.sh` aplica antes de criar a tag e que o
+    # workflow aplica antes de publicar: a versão em src/version.py precisa
+    # ter notas escritas.
+    assert updates.changelog_section(parse_version(__version__)), (
+        f"CHANGELOG.md não descreve o que mudou na versão {__version__}"
+    )
+
+
+def test_workflow_de_release_dispara_em_tag_de_versao():
+    # A garantia de que TODA release ganha nota está no workflow, não no
+    # script local: tag empurrada à mão também precisa publicar as notas.
+    workflow = (Path(__file__).parent / ".github" / "workflows" / "release.yml").read_text(
+        encoding="utf-8"
+    )
+    assert 'tags:' in workflow and '"v*"' in workflow
+    assert "release_notes.py" in workflow
+    assert "gh release create" in workflow
+
+
 def test_aviso_so_aparece_quando_ha_versao_maior_publicada():
     original = updates.latest_version
     try:

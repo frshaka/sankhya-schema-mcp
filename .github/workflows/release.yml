@@ -1,0 +1,43 @@
+name: Release
+
+# Dispara no push de qualquer tag de versão, independente de quem publicou ou
+# de qual máquina. Amarrar a publicação das notas ao script local faria a nota
+# depender de o mantenedor ter rodado o script certo; amarrar à tag não.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # necessário para criar o release
+
+jobs:
+  publicar:
+    name: Publica o release com as notas do CHANGELOG
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # `release_notes.py` só usa a biblioteca padrão: nada a instalar.
+      # Sai com código 1 quando a versão não tem seção no CHANGELOG, e aí o
+      # job falha em vez de publicar um release sem explicação.
+      - name: Extrai as notas do CHANGELOG
+        run: |
+          versao="${GITHUB_REF_NAME#v}"
+          python tools/release_notes.py "$versao" > release-notes.md
+          echo "--- notas de $versao ---"
+          cat release-notes.md
+
+      - name: Publica o release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            --verify-tag
