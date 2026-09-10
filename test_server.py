@@ -808,6 +808,71 @@ def test_changelog_recorta_apenas_o_intervalo_pedido():
             updates._CHANGELOG = original
 
 
+_OPCOES_TGFCAB = [
+    {"nomecampo": "STATUSNOTA", "valor": "L", "opcao": "Liberada"},
+    {"nomecampo": "STATUSNOTA", "valor": "P", "opcao": "Pendente"},
+    {"nomecampo": "TIPMOV", "valor": "V", "opcao": "Venda"},
+    {"nomecampo": "ORIGEM", "valor": "1", "opcao": "Interna"},
+]
+
+
+def test_amostra_anexa_o_rotulo_ao_codigo():
+    # Amostra de tabela Sankhya é uma parede de códigos de uma letra; sem o
+    # rótulo não se lê sem consultar o domínio campo a campo.
+    linhas = server.decorate_options(
+        [{"nunota": 12, "statusnota": "L", "tipmov": "V"}], _OPCOES_TGFCAB
+    )
+    assert linhas[0]["statusnota"] == "L (Liberada)"
+    assert linhas[0]["tipmov"] == "V (Venda)"
+    # Coluna sem domínio não é tocada.
+    assert linhas[0]["nunota"] == 12
+
+
+def test_amostra_deixa_cru_o_valor_fora_do_dominio():
+    # É assim que o valor não declarado se denuncia. Medido na base: TGFCAB
+    # tem TIPMOV='Z' em 23 de 139 linhas, e `Z` não está em TDDOPC.
+    linhas = server.decorate_options([{"tipmov": "Z"}], _OPCOES_TGFCAB)
+    assert linhas[0]["tipmov"] == "Z", "valor fora do domínio não pode ganhar rótulo"
+
+
+def test_amostra_preserva_valores_falsy_e_nulos():
+    # Mesma regra do rows_to_markdown: 0, False e Decimal são valores reais e
+    # não podem virar texto por causa de uma decoração.
+    linhas = server.decorate_options(
+        [{"vlrnota": Decimal("0.00"), "ativo": False, "obs": None, "statusnota": "L"}],
+        _OPCOES_TGFCAB,
+    )
+    assert linhas[0]["vlrnota"] == Decimal("0.00")
+    assert linhas[0]["ativo"] is False
+    assert linhas[0]["obs"] is None
+    assert linhas[0]["statusnota"] == "L (Liberada)"
+
+
+def test_amostra_casa_coluna_minuscula_com_dicionario_maiusculo():
+    # As chaves chegam minúsculas de `fetch_rows`, o dicionário guarda em
+    # maiúsculas, e o valor pode ser numérico enquanto TDDOPC.VALOR é texto.
+    linhas = server.decorate_options([{"origem": 1}], _OPCOES_TGFCAB)
+    assert linhas[0]["origem"] == "1 (Interna)"
+
+
+def test_amostra_sem_dicionario_devolve_as_linhas_intactas():
+    linhas = [{"nunota": 1, "statusnota": "L"}]
+    assert server.decorate_options(linhas, []) == linhas
+    assert server.decorate_options([], _OPCOES_TGFCAB) == []
+
+
+def test_rodape_nao_promete_dominio_fechado():
+    # O dicionário declara o que a aplicação oferece, não esgota o que está
+    # gravado. Prometer "domínio fechado" leva a `IN (...)` que perde linha em
+    # silêncio — o oposto do que as opções vieram resolver.
+    doc = server.describe_table.__doc__ or ""
+    instrucoes = server.mcp.instructions
+    assert "domínio fechado" not in instrucoes
+    assert "NÃO garante esgotar" in instrucoes
+    assert "table_sample" in instrucoes
+    assert doc
+
+
 def test_busca_de_tabela_troca_comentario_vazio_por_verbete():
     # `search_tables` é a primeira tool do fluxo e devolvia uma coluna
     # `comments` vazia — nenhuma tabela da base Sankhya tem comentário de

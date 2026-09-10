@@ -27,7 +27,7 @@ A escolha é feita por `SANKHYA_DB_TYPE` no `.env` — veja [Configuração do b
 | `get_indexes` | Mostra índices e suas colunas |
 | `run_query` | Executa SELECT e retorna resultado formatado (somente leitura) |
 | `validate_query` | Valida sintaxe SQL sem executar (EXPLAIN PLAN no Oracle, SHOWPLAN_ALL no SQL Server) |
-| `table_sample` | Retorna amostra de dados reais da tabela |
+| `table_sample` | Amostra de dados reais, **com o rótulo ao lado do código** (`L (Liberada)`) |
 | `list_modules` | Visão geral dos módulos Sankhya por prefixo de tabela |
 | `check_updates` | Diz se há versão mais nova publicada e o que mudou |
 
@@ -63,6 +63,23 @@ search_tables("TGFCAB")            search_columns("CODPARC", "TGF")
 
 Tabela fora do dicionário (backup, temporária — 31% do catálogo) continua
 aparecendo, apenas sem verbete.
+
+### A lista de opções não esgota o dado gravado
+
+O dicionário declara o que a **aplicação** oferece, não o que está **gravado**.
+Na base medida, `TGFCAB.TIPMOV` tem `Z` em 23 das 139 linhas sem constar em
+`TDDOPC`.
+
+Na prática:
+
+- **Filtro por igualdade** (`WHERE TIPMOV = 'P'`): use a lista de `opcoes`. É
+  para isso que ela existe.
+- **Filtro exaustivo** (`IN`, `NOT IN`) ou **agrupamento** por esse campo:
+  confirme antes com `table_sample` ou um `SELECT campo, COUNT(*) … GROUP BY`.
+  Montar `IN (...)` só com a lista declarada perde linha em silêncio.
+
+Por isso o `table_sample` deixa **sem rótulo** o valor que não está no
+dicionário — é assim que ele se denuncia, em vez de passar por código válido.
 
 ---
 

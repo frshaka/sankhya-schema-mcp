@@ -10,6 +10,27 @@ A tool `check_updates` do próprio servidor compara a versão instalada com a
 de cada release no GitHub** são geradas a partir da seção correspondente deste
 arquivo. Uma seção vazia reprova a publicação.
 
+## [1.4.0] - 2026-09-10
+
+### Adicionado
+
+- `table_sample` anexa o rótulo do dicionário ao valor das colunas enumeradas
+  (`L` vira `L (Liberada)`). Amostra de tabela Sankhya era uma parede de
+  códigos de uma letra, ilegível sem consultar o domínio campo a campo.
+
+### Corrigido
+
+- O rodapé do `describe_table` e as instruções do MCP diziam **domínio
+  fechado** e mandavam usar exatamente os valores de `opcoes`. Não procede: o
+  dicionário declara o que a aplicação oferece, não esgota o que está gravado.
+  Na base medida, `TGFCAB.TIPMOV` tem `Z` em 23 de 139 linhas sem constar em
+  `TDDOPC`. Quem seguisse aquele texto montaria `IN (...)` com a lista
+  declarada e perderia linhas em silêncio — o oposto do que as opções vieram
+  resolver. O texto agora pede confirmação com `table_sample` antes de filtro
+  exaustivo.
+- Valor gravado fora do domínio declarado aparece **sem rótulo** na amostra, em
+  vez de passar despercebido como código válido.
+
 ## [1.3.0] - 2026-09-10
 
 ### Adicionado
@@ -145,6 +166,7 @@ arquivo. Uma seção vazia reprova a publicação.
   `get_foreign_keys`, `get_indexes`, `run_query`, `validate_query`,
   `table_sample`, `search_entities` e `list_modules`.
 
+[1.4.0]: https://github.com/frshaka/sankhya-schema-mcp/releases/tag/v1.4.0
 [1.3.0]: https://github.com/frshaka/sankhya-schema-mcp/releases/tag/v1.3.0
 [1.2.1]: https://github.com/frshaka/sankhya-schema-mcp/releases/tag/v1.2.1
 [1.2.0]: https://github.com/frshaka/sankhya-schema-mcp/releases/tag/v1.2.0

@@ -8,4 +8,4 @@ este número diverge do topo do CHANGELOG.
 Formato SemVer `MAJOR.MINOR.PATCH`, publicado como tag `vMAJOR.MINOR.PATCH`.
 """
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"

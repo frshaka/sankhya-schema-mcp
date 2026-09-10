@@ -230,6 +230,46 @@ def merge_field_dict(
     return linhas
 
 
+def decorate_options(rows: list[dict], opcoes: list[dict]) -> list[dict]:
+    """
+    Anexa o rótulo do dicionário ao valor de coluna enumerada: `L` → `L (Liberada)`.
+
+    Amostra de tabela Sankhya é uma parede de códigos de uma letra — `tipmov`,
+    `statusnota`, `ativo` — que não se lê sem consultar o domínio campo a campo.
+
+    Só decora quando existe rótulo para aquele valor. Valor gravado fora do
+    domínio declarado fica cru de propósito: é assim que ele se denuncia, em vez
+    de passar por código conhecido. (Medido: TGFCAB.TIPMOV tem `Z` em 23 de 139
+    linhas, e `Z` não está em TDDOPC.)
+
+    O casamento é por nome de coluna em minúsculas — as chaves vêm assim de
+    `fetch_rows` e o dicionário guarda em maiúsculas — e por valor convertido a
+    texto, porque TDDOPC.VALOR é sempre string e a coluna pode ser numérica.
+    """
+    if not rows or not opcoes:
+        return rows
+
+    dominios: dict[str, dict[str, str]] = {}
+    for r in opcoes:
+        campo = (r.get("nomecampo") or "").lower()
+        dominios.setdefault(campo, {})[str(r.get("valor")).strip()] = r.get("opcao")
+
+    decoradas = []
+    for row in rows:
+        nova = {}
+        for coluna, valor in row.items():
+            rotulo = (
+                dominios.get(coluna, {}).get(str(valor).strip())
+                if valor is not None
+                else None
+            )
+            # Sem rótulo o valor volta intacto — inclusive 0, False e Decimal,
+            # que não podem virar texto por causa de uma decoração.
+            nova[coluna] = f"{valor} ({rotulo})" if rotulo else valor
+        decoradas.append(nova)
+    return decoradas
+
+
 def merge_table_descriptions(rows: list[dict], descricoes: list[dict]) -> list[dict]:
     """
     Troca a coluna `comments` do catálogo pelo verbete do dicionário (TDDTAB).
@@ -468,7 +508,12 @@ mcp = FastMCP(
         "sem levantar erro de SQL. O mesmo campo tem domínio DIFERENTE em tabelas "
         "diferentes (TIPMOV existe em 17 tabelas), então consulte a tabela que a "
         "sua query realmente usa. Se o campo não estiver em `opcoes`, ele não é "
-        "enumerado e o valor vem do dado.\n\n"
+        "enumerado e o valor vem do dado.\n"
+        "A lista de `opcoes` é o que o dicionário declara, e NÃO garante esgotar "
+        "o que está gravado: há base com valor em uso fora da lista. Para filtro "
+        "por igualdade, use a lista. Para filtro exaustivo (`IN`, `NOT IN`) ou "
+        "para agrupar por esse campo, confirme antes com `table_sample` ou um "
+        "`SELECT campo, COUNT(*) ... GROUP BY campo`.\n\n"
         "PROIBIÇÕES:\n"
         "- Só delegue tarefas que dependem deste MCP para subagents cuja definição inclua "
         "as tools `mcp__sankhya-schema__*`. Na dúvida, resolva no agente principal.\n"
@@ -536,9 +581,16 @@ def describe_table(table_name: str) -> str:
     enumerados = sum(1 for c in campos if c["opcoes"])
     rodape = f"_{len(campos)} coluna(s)"
     if enumerados:
+        # "domínio fechado" seria mentira: o dicionário declara o que a
+        # aplicação oferece, não esgota o que está gravado. Na base medida,
+        # TGFCAB.TIPMOV tem `Z` em 23 de 139 linhas sem estar em TDDOPC — quem
+        # montasse um `IN (...)` com a lista declarada perderia essas linhas em
+        # silêncio, que é justamente o erro que estas opções vêm evitar.
         rodape += (
-            f", {enumerados} com domínio fechado — use exatamente os valores "
-            "listados em `opcoes`, não deduza pelo nome do campo"
+            f", {enumerados} com valores declarados em `opcoes` — use esses "
+            "valores em vez de deduzir pelo nome do campo, e confirme com "
+            "`table_sample` antes de montar filtro exaustivo (`IN`, `NOT IN`), "
+            "porque o dado pode conter valor fora da lista"
         )
     rodape += "._"
 
@@ -729,6 +781,11 @@ def table_sample(table_name: str, limit: int = 10, columns: str = "") -> str:
     Útil para entender o conteúdo e o formato dos campos.
     Aceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).
 
+    Colunas enumeradas vêm com o rótulo do dicionário ao lado do código
+    (`L (Liberada)`), então a amostra também serve para conferir quais valores
+    a tabela realmente usa — inclusive valor gravado fora do domínio declarado,
+    que aparece sem rótulo.
+
     Tabela Sankhya é larga (TGFTOP passa de 600 colunas). Sem `columns`, a
     amostra traz apenas as primeiras colunas na ordem da tabela e avisa quantas
     ficaram de fora — informe `columns` para ver exatamente as que interessam.
@@ -759,6 +816,10 @@ def table_sample(table_name: str, limit: int = 10, columns: str = "") -> str:
 
         total_colunas = len(rows[0])
         amostra, ausentes, cortadas = select_columns(rows, columns)
+        # Decora depois de projetar: só paga rótulo pelo que vai ser exibido.
+        amostra = decorate_options(
+            amostra, dictionary_rows("field_options", resolved)
+        )
         if not amostra:
             return (
                 f"❌ Nenhuma das colunas pedidas existe em `{resolved}`: "
