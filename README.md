@@ -509,8 +509,7 @@ docker start skdev-oracle   # reiniciar
 ```bash
 docker volume create skdev-mssql-volume
 
-docker run -d --name skdev-mssql -p 1433:1433 \
-  -v skdev-mssql-volume:/var/opt/mssql sankhyaimages/skdev-mssql:1.1.0
+docker run -d --name skdev-mssql -p 1433:1433 -v skdev-mssql-volume:/var/opt/mssql sankhyaimages/skdev-mssql:1.1.0
 ```
 
 > ⚠️ A primeira inicialização também leva de 20 a 30 minutos. Acompanhe com: `docker logs -f skdev-mssql`.
