@@ -63,6 +63,23 @@ _DICIONARIO_QUERIES = {
           AND ATIVO = 'S'
         ORDER BY RAIZ DESC, NOMEINSTANCIA
     """,
+    # Verbete da tabela, para o `search_tables`. Cobre 3.307 tabelas (69% do
+    # catálogo) com 100% dos verbetes preenchidos, contra zero comentário de
+    # tabela no catálogo — é o que diz se `TGFCAB` é o que se procurava.
+    "table_descriptions": """
+        SELECT NOMETAB, DESCRTAB
+        FROM {schema}TDDTAB
+        WHERE NOMETAB LIKE {p1}
+    """,
+    # Descrição por par tabela+campo, para o `search_columns`. Os mesmos
+    # filtros da consulta de catálogo, para não trazer verbete que não vai ser
+    # usado nem deixar linha sem descrição.
+    "column_descriptions": """
+        SELECT NOMETAB, NOMECAMPO, DESCRCAMPO
+        FROM {schema}TDDCAM
+        WHERE NOMECAMPO LIKE {p1}
+          {filtro}
+    """,
     "search_entities": """
         SELECT
             NOMETAB        AS tabela,

@@ -10,6 +10,31 @@ A tool `check_updates` do próprio servidor compara a versão instalada com a
 de cada release no GitHub** são geradas a partir da seção correspondente deste
 arquivo. Uma seção vazia reprova a publicação.
 
+## [1.3.0] - 2026-09-10
+
+### Adicionado
+
+- `search_tables` passa a mostrar a **descrição de cada tabela** (`TDDTAB`):
+  `TGFCAB` deixa de ser só um nome e aparece como "Entrada e Saída de Produto".
+  Cobre 69% do catálogo, com 100% dos verbetes preenchidos.
+- `search_columns` passa a mostrar a **descrição de cada campo** por tabela
+  (`TDDCAM`). A chave é o par tabela+campo, porque o mesmo nome significa
+  coisas diferentes conforme a tabela: `CODPARC` é "Parceiro" na TGFAAXN e
+  "Cód. Parceiro" na TGFACO.
+- Integração contínua (`.github/workflows/ci.yml`): os testes rodam a cada
+  push na `main` e a cada pull request. Antes só rodavam quando alguém lembrava
+  ou dentro do `tools/release.sh` — tarde demais, a quebra aparecia só na hora
+  de publicar.
+
+### Alterado
+
+- As duas tools de busca deixaram de emitir a coluna `comments`, sempre vazia
+  na base Sankhya, no lugar da descrição do dicionário. O comentário do
+  catálogo continua como reserva, para bases onde ele exista.
+- `search_columns` normaliza o indicador de nulo para `S`/`N`, como o
+  `describe_table` já fazia. A mesma coluna não pode se descrever de um jeito
+  numa tool e de outro na vizinha.
+
 ## [1.2.1] - 2026-09-10
 
 ### Adicionado
@@ -120,6 +145,7 @@ arquivo. Uma seção vazia reprova a publicação.
   `get_foreign_keys`, `get_indexes`, `run_query`, `validate_query`,
   `table_sample`, `search_entities` e `list_modules`.
 
+[1.3.0]: https://github.com/frshaka/sankhya-schema-mcp/releases/tag/v1.3.0
 [1.2.1]: https://github.com/frshaka/sankhya-schema-mcp/releases/tag/v1.2.1
 [1.2.0]: https://github.com/frshaka/sankhya-schema-mcp/releases/tag/v1.2.0
 [1.1.0]: https://github.com/frshaka/sankhya-schema-mcp/releases/tag/v1.1

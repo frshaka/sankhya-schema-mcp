@@ -1,0 +1,30 @@
+name: CI
+
+# Os testes só rodavam quando alguém lembrava ou dentro do `tools/release.sh` —
+# tarde demais: a quebra aparecia na hora de publicar. Aqui rodam a cada push
+# e a cada PR.
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  testes:
+    name: Autoteste das funções puras
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # `requirements.txt` traz o driver Oracle, que instala por wheel e não
+      # precisa do Instant Client para o import: os testes não abrem conexão.
+      - name: Instala as dependências
+        run: pip install -r requirements.txt
+
+      - name: Roda os testes
+        run: python test_server.py

@@ -808,6 +808,93 @@ def test_changelog_recorta_apenas_o_intervalo_pedido():
             updates._CHANGELOG = original
 
 
+def test_busca_de_tabela_troca_comentario_vazio_por_verbete():
+    # `search_tables` é a primeira tool do fluxo e devolvia uma coluna
+    # `comments` vazia — nenhuma tabela da base Sankhya tem comentário de
+    # catálogo. O verbete é o que diz se a candidata é a certa.
+    rows = [
+        {"table_name": "TGFCAB", "num_rows": 95, "comments": None},
+        {"table_name": "TGFCAB_BCK", "num_rows": 0, "comments": None},
+    ]
+    saida = server.merge_table_descriptions(
+        rows, [{"nometab": "TGFCAB", "descrtab": "Entrada e Saída de Produto"}]
+    )
+    assert saida[0] == {
+        "tabela": "TGFCAB",
+        "linhas": 95,
+        "descricao": "Entrada e Saída de Produto",
+    }
+    # Tabela fora do dicionário (backup, temporária) não some, fica sem verbete.
+    assert saida[1]["tabela"] == "TGFCAB_BCK"
+    assert saida[1]["descricao"] == ""
+
+
+def test_busca_de_tabela_usa_comentario_do_catalogo_como_reserva():
+    saida = server.merge_table_descriptions(
+        [{"table_name": "OUTRA", "num_rows": 1, "comments": "verbete do catálogo"}], []
+    )
+    assert saida[0]["descricao"] == "verbete do catálogo"
+
+
+def test_busca_de_campo_casa_por_tabela_e_campo():
+    # A chave é o par: o mesmo nome de campo tem descrição diferente conforme a
+    # tabela, do mesmo jeito que tem domínio diferente.
+    rows = [
+        {"table_name": "TGFCAB", "column_name": "CODPARC",
+         "data_type": "NUMBER", "nullable": "N", "comments": None},
+        {"table_name": "TGFACO", "column_name": "CODPARC",
+         "data_type": "NUMBER", "nullable": "N", "comments": None},
+    ]
+    descricoes = [
+        {"nometab": "TGFCAB", "nomecampo": "CODPARC", "descrcampo": "Parceiro"},
+        {"nometab": "TGFACO", "nomecampo": "CODPARC", "descrcampo": "Cód. Parceiro"},
+    ]
+    saida = server.merge_column_descriptions(rows, descricoes)
+    assert saida[0]["descricao"] == "Parceiro"
+    assert saida[1]["descricao"] == "Cód. Parceiro"
+    # Nulo normalizado aqui também: a mesma coluna não pode se descrever de um
+    # jeito no describe_table e de outro no search_columns.
+    assert saida[0]["nulo"] == "N"
+    assert list(saida[0]) == ["tabela", "campo", "tipo", "nulo", "descricao"]
+
+
+def test_busca_sem_dicionario_nao_perde_linha():
+    # Dicionário inacessível degrada para a saída de antes, sem descrição, mas
+    # nunca some com resultado do catálogo.
+    rows = [{"table_name": "T", "column_name": "C",
+             "data_type": "NUMBER", "nullable": "YES", "comments": None}]
+    saida = server.merge_column_descriptions(rows, [])
+    assert len(saida) == 1
+    assert saida[0]["descricao"] == ""
+    assert saida[0]["nulo"] == "S"
+    assert server.merge_table_descriptions([], []) == []
+
+
+def test_filtro_opcional_da_busca_de_campo_vale_nos_dois_bancos():
+    # O dicionário não tem alias de tabela: o filtro usa a coluna crua, e o
+    # placeholder precisa ser resolvido igual ao da consulta de catálogo.
+    dialeto_original = dialects.DB_TYPE
+    try:
+        for dialeto, bind in (("oracle", ":2"), ("sqlserver", "%s")):
+            dialects.DB_TYPE = dialeto
+            com = dialects.query("column_descriptions", filtro="AND NOMETAB LIKE {p2}")
+            assert "{" not in com, dialeto
+            assert bind in com, dialeto
+            sem = dialects.query("column_descriptions", filtro="")
+            assert "{" not in sem, dialeto
+            assert "NOMETAB LIKE" not in sem, dialeto
+    finally:
+        dialects.DB_TYPE = dialeto_original
+
+
+def test_ci_roda_os_testes_em_push_e_pr():
+    ci = (Path(__file__).parent / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "pull_request:" in ci
+    assert "python test_server.py" in ci
+
+
 def test_secao_de_uma_versao_sai_sem_o_cabecalho():
     # É o corpo das notas do release no GitHub. O título do release já é a
     # tag, então repetir "## [1.2.0] - data" no corpo seria redundante.

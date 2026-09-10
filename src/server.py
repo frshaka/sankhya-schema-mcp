@@ -230,6 +230,53 @@ def merge_field_dict(
     return linhas
 
 
+def merge_table_descriptions(rows: list[dict], descricoes: list[dict]) -> list[dict]:
+    """
+    Troca a coluna `comments` do catálogo pelo verbete do dicionário (TDDTAB).
+
+    `search_tables` é a primeira tool do fluxo e devolvia uma coluna vazia:
+    nenhuma tabela da base Sankhya tem comentário de catálogo. Com o verbete,
+    `TGFCAB` deixa de ser só um nome e vira "Entrada e Saída de Produto".
+
+    Tabela fora do dicionário (31% do catálogo — temporárias, views de apoio)
+    cai no comentário do catálogo e, faltando esse, fica em branco.
+    """
+    por_tabela = {r["nometab"]: r.get("descrtab") for r in descricoes or []}
+    return [
+        {
+            "tabela": r["table_name"],
+            "linhas": r.get("num_rows"),
+            "descricao": por_tabela.get(r["table_name"]) or r.get("comments") or "",
+        }
+        for r in rows
+    ]
+
+
+def merge_column_descriptions(rows: list[dict], descricoes: list[dict]) -> list[dict]:
+    """
+    Mesma troca do `merge_table_descriptions`, para `search_columns`.
+
+    A chave é o par tabela+campo, não o campo sozinho: o mesmo nome tem
+    descrição diferente conforme a tabela, do mesmo jeito que tem domínio
+    diferente (ver `merge_field_dict`).
+    """
+    por_par = {
+        (r["nometab"], r["nomecampo"]): r.get("descrcampo") for r in descricoes or []
+    }
+    return [
+        {
+            "tabela": r["table_name"],
+            "campo": r["column_name"],
+            "tipo": r.get("data_type"),
+            "nulo": is_nullable(r.get("nullable")),
+            "descricao": por_par.get((r["table_name"], r["column_name"]))
+            or r.get("comments")
+            or "",
+        }
+        for r in rows
+    ]
+
+
 def rows_to_markdown(rows: list[dict]) -> str:
     """Converte lista de dicts para tabela Markdown."""
     if not rows:
@@ -263,7 +310,7 @@ def pick_owner(owners: set[str]) -> str:
     return conectado if conectado in owners else sorted(owners)[0]
 
 
-def dictionary_rows(nome_query: str, *params) -> list[dict]:
+def dictionary_rows(nome_query: str, *params, **fmt) -> list[dict]:
     """
     Consulta o dicionário Sankhya devolvendo lista vazia quando ele não existe
     no schema conectado.
@@ -274,7 +321,7 @@ def dictionary_rows(nome_query: str, *params) -> list[dict]:
     não pode virar resposta incompleta silenciosa.
     """
     try:
-        return execute_query(query(nome_query), list(params), limit=None)
+        return execute_query(query(nome_query, **fmt), list(params), limit=None)
     except Exception as exc:
         if is_missing_object(exc):
             return []
@@ -510,13 +557,21 @@ def search_tables(keyword: str) -> str:
     Busca tabelas cujo nome contenha o termo informado.
     Útil para descobrir tabelas relacionadas a um módulo.
 
+    Traz a descrição da tabela em português vinda do dicionário Sankhya, para
+    você saber qual das candidatas é a certa sem abrir uma por uma.
+
     Exemplos:
       search_tables("TGF")   → todas as tabelas de movimento
       search_tables("PARC")  → tabelas relacionadas a parceiros
       search_tables("FIN")   → tabelas financeiras
     """
-    rows, truncated = fetch_rows(query("tables"), [f"%{keyword.upper()}%"])
-    return rows_to_markdown(rows) + truncation_note(truncated)
+    padrao = f"%{keyword.upper()}%"
+    rows, truncated = fetch_rows(query("tables"), [padrao])
+    descricoes = dictionary_rows("table_descriptions", padrao)
+    return (
+        rows_to_markdown(merge_table_descriptions(rows, descricoes))
+        + truncation_note(truncated)
+    )
 
 
 @mcp.tool()
@@ -524,6 +579,10 @@ def search_columns(column_keyword: str, table_keyword: str = "") -> str:
     """
     Busca em quais tabelas existe um campo com o nome informado.
     Permite filtrar por prefixo de tabela.
+
+    Traz a descrição de cada campo em português vinda do dicionário Sankhya.
+    A mesma coluna pode significar coisas diferentes em tabelas diferentes, e é
+    a descrição que separa uma da outra.
 
     Exemplos:
       search_columns("CODPARC")           → onde CODPARC aparece
@@ -535,7 +594,14 @@ def search_columns(column_keyword: str, table_keyword: str = "") -> str:
     if table_keyword:
         params.append(f"{table_keyword.upper()}%")
     rows, truncated = fetch_rows(query("columns_search", filtro=filtro), params)
-    return rows_to_markdown(rows) + truncation_note(truncated)
+
+    # O dicionário não tem alias de tabela: o filtro opcional usa a coluna crua.
+    filtro_dic = "AND NOMETAB LIKE {p2}" if table_keyword else ""
+    descricoes = dictionary_rows("column_descriptions", *params, filtro=filtro_dic)
+    return (
+        rows_to_markdown(merge_column_descriptions(rows, descricoes))
+        + truncation_note(truncated)
+    )
 
 
 @mcp.tool()

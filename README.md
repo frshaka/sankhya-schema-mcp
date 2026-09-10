@@ -20,8 +20,8 @@ A escolha é feita por `SANKHYA_DB_TYPE` no `.env` — veja [Configuração do b
 | Tool | O que faz |
 |------|-----------|
 | `describe_table` | Colunas, tipos, nullable, **descrição em português** e **todos os valores aceitos** dos campos enumerados |
-| `search_tables` | Busca tabelas por nome parcial (ex: `TGF`, `TSIUSU`) |
-| `search_columns` | Descobre em quais tabelas existe determinado campo (ex: `CODPARC`) |
+| `search_tables` | Busca tabelas por nome parcial (ex: `TGF`, `TSIUSU`), **com a descrição de cada uma** |
+| `search_columns` | Descobre em quais tabelas existe determinado campo (ex: `CODPARC`), **com a descrição por tabela** |
 | `search_entities` | Busca EntityNames (instâncias Sankhya) por nome ou descrição |
 | `get_foreign_keys` | FKs do banco **e** as ligações lógicas do dicionário (as que o JAPE enxerga) |
 | `get_indexes` | Mostra índices e suas colunas |
@@ -50,6 +50,19 @@ SQL. E o mesmo nome de campo tem domínio diferente em tabelas diferentes:
 
 Por isso a saída não é resumida nem truncada: assertividade da resposta vem
 antes de economia de tokens.
+
+O `search_tables` e o `search_columns` bebem da mesma fonte, para a etapa de
+descoberta não depender de adivinhação de nome:
+
+```
+search_tables("TGFCAB")            search_columns("CODPARC", "TGF")
+| tabela    | linhas | descricao |            | tabela  | campo   | ... | descricao     |
+| TGFCAB    | 95     | Entrada e Saída de …|  | TGFAAXN | CODPARC | ... | Parceiro      |
+| TGFCABLIG | 0      | Auto relacionamentos …| | TGFACO | CODPARC | ... | Cód. Parceiro |
+```
+
+Tabela fora do dicionário (backup, temporária — 31% do catálogo) continua
+aparecendo, apenas sem verbete.
 
 ---
 
