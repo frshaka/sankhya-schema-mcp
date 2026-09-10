@@ -1,5 +1,7 @@
 # Sankhya Schema MCP
 
+[![release](https://img.shields.io/github/v/release/frshaka/sankhya-schema-mcp?label=release&color=blue)](https://github.com/frshaka/sankhya-schema-mcp/releases/latest)
+
 Servidor MCP (Model Context Protocol) que conecta o Claude Code e/ou o Codex CLI ao banco do Sankhya ERP, permitindo explorar tabelas, campos, índices, relacionamentos e executar queries SQL diretamente durante uma conversa.
 
 Suporta os **dois bancos** distribuídos pela Sankhya no ambiente de desenvolvimento:
