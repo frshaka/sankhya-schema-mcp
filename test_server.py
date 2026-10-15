@@ -6,9 +6,14 @@ Execute:
     Linux:   .venv/bin/python test_server.py
 """
 
+import json
+import os
+import queue
 import re
+import subprocess
 import sys
 import tempfile
+import threading
 from contextlib import contextmanager
 from decimal import Decimal
 from pathlib import Path
@@ -213,6 +218,9 @@ class _FakeCursor:
     def fetchmany(self, n):
         self.fetchmany_args.append(n)
         return [(i,) for i in range(min(n, self._total))]
+
+    def close(self):
+        pass
 
 
 class _FakeConn:
@@ -1057,7 +1065,145 @@ def test_instrucoes_exigem_consultar_dominio_antes_do_literal():
     assert "opcoes" in instrucoes
 
 
-if __name__ == "__main__":
+# --- Contrato MCP: o que o cliente recebe pelo fio ---------------------------
+#
+# Os testes acima chamam funções Python; nenhum deles vê o que o SDK do MCP põe
+# no protocolo — lista de tools, schemas, texto de erro, `isError`. É isso que
+# muda numa troca de versão do SDK sem quebrar teste nenhum. Aqui o servidor
+# sobe de verdade num processo filho (stdio, com banco falso) e conversa por
+# JSON-RPC como o Claude Code faz. O resultado é comparado com
+# `contrato_mcp.json`; qualquer diferença falha o teste e aparece no diff do git.
+# Mudança intencional: rode com ATUALIZAR_CONTRATO=1 e revise o diff do JSON.
+
+CONTRATO = Path(__file__).parent / "contrato_mcp.json"
+_FLAG_SERVIDOR = "--servidor-contrato"
+_PROTOCOLO_CLIENTE = "2025-11-25"
+_TIMEOUT_RESPOSTA_S = 30
+
+# Uma chamada por tool, mais os caminhos de erro que não dependem do banco.
+_CHAMADAS_CONTRATO = [
+    ("describe_table", {"table_name": "TGFCAB"}),
+    ("search_tables", {"keyword": "TGF"}),
+    ("search_columns", {"column_keyword": "TIPMOV"}),
+    ("get_foreign_keys", {"table_name": "TGFCAB"}),
+    ("get_indexes", {"table_name": "TGFCAB"}),
+    ("run_query", {"sql": "SELECT 1 FROM DUAL"}),
+    ("validate_query", {"sql": "SELECT 1 FROM DUAL"}),
+    ("table_sample", {"table_name": "TGFCAB"}),
+    ("search_entities", {"keyword": "Nota"}),
+    ("list_modules", {}),
+    ("check_updates", {}),
+    ("run_query", {"sql": "DELETE FROM TGFCAB"}),
+    ("describe_table", {}),
+]
+
+
+def _servir_para_contrato(cenario):
+    """Processo filho: o servidor real em stdio, com banco falso."""
+
+    @contextmanager
+    def _connect_falso():
+        if cenario == "erro":
+            raise Exception("ORA-01017: invalid username/password; logon denied")
+        yield _FakeConn(_FakeCursor(0))
+
+    server.connect = dialects.connect = _connect_falso
+    # check_updates consultaria o remote: resposta variaria com a rede.
+    server.latest_version = lambda use_cache=True: None
+    server.mcp.run()
+
+
+class _ClienteStdio:
+    """Cliente JSON-RPC mínimo sobre o stdio de um processo filho."""
+
+    def __init__(self, cenario):
+        self._proc = subprocess.Popen(
+            [sys.executable, __file__, _FLAG_SERVIDOR, cenario],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        )
+        self._linhas = queue.Queue()
+        threading.Thread(target=self._ler, daemon=True).start()
+        self._proximo_id = 0
+
+    def _ler(self):
+        for linha in self._proc.stdout:
+            self._linhas.put(linha)
+
+    def _enviar(self, mensagem):
+        self._proc.stdin.write(json.dumps(mensagem).encode("utf-8") + b"\n")
+        self._proc.stdin.flush()
+
+    def notificar(self, metodo):
+        self._enviar({"jsonrpc": "2.0", "method": metodo})
+
+    def pedir(self, metodo, params=None):
+        self._proximo_id += 1
+        self._enviar({"jsonrpc": "2.0", "id": self._proximo_id, "method": metodo,
+                      "params": params or {}})
+        while True:
+            try:
+                resposta = json.loads(self._linhas.get(timeout=_TIMEOUT_RESPOSTA_S))
+            except queue.Empty:
+                raise AssertionError(f"servidor não respondeu a {metodo}") from None
+            if resposta.get("id") == self._proximo_id:
+                return resposta
+
+    def fechar(self):
+        self._proc.stdin.close()
+        try:
+            self._proc.wait(timeout=_TIMEOUT_RESPOSTA_S)
+        except subprocess.TimeoutExpired:
+            self._proc.kill()
+
+
+def _normalizar(texto):
+    """Tira do contrato o que muda a cada release ou a cada dia, não por versão do SDK."""
+    texto = texto.replace(__version__, "<VERSAO>")
+    return re.sub(r"⚠️ ATUALIZAÇÃO DISPONÍVEL: .*?\n\n", "", texto, flags=re.S)
+
+
+def _capturar_cenario(cenario):
+    cliente = _ClienteStdio(cenario)
+    try:
+        inicio = cliente.pedir("initialize", {
+            "protocolVersion": _PROTOCOLO_CLIENTE, "capabilities": {},
+            "clientInfo": {"name": "contrato", "version": "0"},
+        })["result"]
+        cliente.notificar("notifications/initialized")
+        tools = cliente.pedir("tools/list")["result"]["tools"]
+        chamadas = [
+            {"tool": nome, "argumentos": args,
+             "resposta": {k: v for k, v in cliente.pedir(
+                 "tools/call", {"name": nome, "arguments": args}).items()
+                 if k in ("result", "error")}}
+            for nome, args in _CHAMADAS_CONTRATO
+        ]
+    finally:
+        cliente.fechar()
+    return {
+        "protocolVersion": inicio["protocolVersion"],
+        "instructions": inicio.get("instructions"),
+        "tools": sorted(tools, key=lambda t: t["name"]),
+        "chamadas": chamadas,
+    }
+
+
+def test_contrato_mcp_nao_muda_sem_revisao():
+    capturado = {c: _capturar_cenario(c) for c in ("vazio", "erro")}
+    atual = _normalizar(json.dumps(capturado, ensure_ascii=False, indent=2, sort_keys=True))
+    if os.environ.get("ATUALIZAR_CONTRATO") == "1":
+        CONTRATO.write_text(atual + "\n", encoding="utf-8")
+        return
+    assert CONTRATO.exists(), "contrato_mcp.json ausente: gere com ATUALIZAR_CONTRATO=1"
+    esperado = CONTRATO.read_text(encoding="utf-8").rstrip("\n")
+    assert atual == esperado, (
+        "o contrato MCP mudou. Revise com ATUALIZAR_CONTRATO=1 e `git diff contrato_mcp.json`."
+    )
+
+
+if __name__ == "__main__" and _FLAG_SERVIDOR in sys.argv:
+    _servir_para_contrato(sys.argv[-1])
+elif __name__ == "__main__":
     testes = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for teste in testes:
         teste()

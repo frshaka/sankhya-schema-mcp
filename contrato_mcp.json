@@ -1,0 +1,1174 @@
+{
+  "erro": {
+    "chamadas": [
+      {
+        "argumentos": {
+          "table_name": "TGFCAB"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "Error executing tool describe_table: ORA-01017: invalid username/password; logon denied",
+                "type": "text"
+              }
+            ],
+            "isError": true
+          }
+        },
+        "tool": "describe_table"
+      },
+      {
+        "argumentos": {
+          "keyword": "TGF"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "Error executing tool search_tables: ORA-01017: invalid username/password; logon denied",
+                "type": "text"
+              }
+            ],
+            "isError": true
+          }
+        },
+        "tool": "search_tables"
+      },
+      {
+        "argumentos": {
+          "column_keyword": "TIPMOV"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "Error executing tool search_columns: ORA-01017: invalid username/password; logon denied",
+                "type": "text"
+              }
+            ],
+            "isError": true
+          }
+        },
+        "tool": "search_columns"
+      },
+      {
+        "argumentos": {
+          "table_name": "TGFCAB"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "Error executing tool get_foreign_keys: ORA-01017: invalid username/password; logon denied",
+                "type": "text"
+              }
+            ],
+            "isError": true
+          }
+        },
+        "tool": "get_foreign_keys"
+      },
+      {
+        "argumentos": {
+          "table_name": "TGFCAB"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "Error executing tool get_indexes: ORA-01017: invalid username/password; logon denied",
+                "type": "text"
+              }
+            ],
+            "isError": true
+          }
+        },
+        "tool": "get_indexes"
+      },
+      {
+        "argumentos": {
+          "sql": "SELECT 1 FROM DUAL"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "❌ Erro ao executar query:\n```\nORA-01017: invalid username/password; logon denied\n```",
+                "type": "text"
+              }
+            ],
+            "isError": false,
+            "structuredContent": {
+              "result": "❌ Erro ao executar query:\n```\nORA-01017: invalid username/password; logon denied\n```"
+            }
+          }
+        },
+        "tool": "run_query"
+      },
+      {
+        "argumentos": {
+          "sql": "SELECT 1 FROM DUAL"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "❌ Query inválida:\n```\nORA-01017: invalid username/password; logon denied\n```",
+                "type": "text"
+              }
+            ],
+            "isError": false,
+            "structuredContent": {
+              "result": "❌ Query inválida:\n```\nORA-01017: invalid username/password; logon denied\n```"
+            }
+          }
+        },
+        "tool": "validate_query"
+      },
+      {
+        "argumentos": {
+          "table_name": "TGFCAB"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "Error executing tool table_sample: ORA-01017: invalid username/password; logon denied",
+                "type": "text"
+              }
+            ],
+            "isError": true
+          }
+        },
+        "tool": "table_sample"
+      },
+      {
+        "argumentos": {
+          "keyword": "Nota"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "Error executing tool search_entities: ORA-01017: invalid username/password; logon denied",
+                "type": "text"
+              }
+            ],
+            "isError": true
+          }
+        },
+        "tool": "search_entities"
+      },
+      {
+        "argumentos": {},
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "Error executing tool list_modules: ORA-01017: invalid username/password; logon denied",
+                "type": "text"
+              }
+            ],
+            "isError": true
+          }
+        },
+        "tool": "list_modules"
+      },
+      {
+        "argumentos": {},
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "Versão instalada: **<VERSAO>**.\n\n⚠️ Não foi possível consultar as versões publicadas. Verifique se o `git` está no PATH, se este diretório é um clone com `origin` configurado e se há acesso à rede.",
+                "type": "text"
+              }
+            ],
+            "isError": false,
+            "structuredContent": {
+              "result": "Versão instalada: **<VERSAO>**.\n\n⚠️ Não foi possível consultar as versões publicadas. Verifique se o `git` está no PATH, se este diretório é um clone com `origin` configurado e se há acesso à rede."
+            }
+          }
+        },
+        "tool": "check_updates"
+      },
+      {
+        "argumentos": {
+          "sql": "DELETE FROM TGFCAB"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "❌ Apenas comandos SELECT (ou WITH ... SELECT) são permitidos.",
+                "type": "text"
+              }
+            ],
+            "isError": false,
+            "structuredContent": {
+              "result": "❌ Apenas comandos SELECT (ou WITH ... SELECT) são permitidos."
+            }
+          }
+        },
+        "tool": "run_query"
+      },
+      {
+        "argumentos": {},
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "Error executing tool describe_table: 1 validation error for describe_tableArguments\ntable_name\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.14/v/missing",
+                "type": "text"
+              }
+            ],
+            "isError": true
+          }
+        },
+        "tool": "describe_table"
+      }
+    ],
+    "instructions": "Servidor de exploração do schema do banco do Sankhya ERP (Oracle ou SQL Server, conforme SANKHYA_DB_TYPE). Versão <VERSAO>.\n\nAÇÃO IMEDIATA — LEIA ANTES DE QUALQUER OUTRA DECISÃO:\nQuando o usuário mencionar tabelas, campos, queries, SQL, schema, ou qualquer entidade do Sankhya (notas, produtos, parceiros, qualidade, amostras, laudos, etc.), sua PRIMEIRA ação deve ser chamar search_tables ou describe_table deste MCP. Não use Agent, não use Bash, não use Grep, não tente pesquisar no código local. Vá direto às tools deste MCP como primeiro passo.\n\nFLUXO CORRETO:\n1. Usuário pede algo relacionado ao banco/schema → chame search_tables imediatamente\n2. Identifique as tabelas relevantes → chame describe_table para cada uma\n3. Com o schema real em mãos → escreva a query\n4. NUNCA pule os passos 1 e 2. NUNCA invente nomes de tabelas ou colunas.\n\nLITERAIS EM WHERE — REGRA ABSOLUTA:\nAntes de escrever qualquer filtro com valor literal (`WHERE TIPMOV = 'P'`, `STATUSNOTA = 'L'`, `ATIVO = 'S'`), chame describe_table na tabela e use exatamente um dos valores listados na coluna `opcoes` daquele campo. Os códigos do Sankhya são de uma letra e enganosamente parecidos: em TGFCAB.TIPMOV, `V` é Venda e `P` é Pedido de venda; escolher pelo nome do campo ou pelo português do pedido do usuário devolve o documento errado sem levantar erro de SQL. O mesmo campo tem domínio DIFERENTE em tabelas diferentes (TIPMOV existe em 17 tabelas), então consulte a tabela que a sua query realmente usa. Se o campo não estiver em `opcoes`, ele não é enumerado e o valor vem do dado.\nA lista de `opcoes` é o que o dicionário declara, e NÃO garante esgotar o que está gravado: há base com valor em uso fora da lista. Para filtro por igualdade, use a lista. Para filtro exaustivo (`IN`, `NOT IN`) ou para agrupar por esse campo, confirme antes com `table_sample` ou um `SELECT campo, COUNT(*) ... GROUP BY campo`.\n\nPROIBIÇÕES:\n- Só delegue tarefas que dependem deste MCP para subagents cuja definição inclua as tools `mcp__sankhya-schema__*`. Na dúvida, resolva no agente principal.\n- NUNCA tente conexão direta ao banco.\n- NUNCA invente, chute ou assuma credenciais.\n- NUNCA use listMcpResources para tentar acessar este servidor. Use as tools diretamente: search_tables, describe_table, etc.\n- Se uma tool falhar, informe o usuário e aguarde. Não contorne com scripts ou outros meios.",
+    "protocolVersion": "2025-11-25",
+    "tools": [
+      {
+        "description": "\nInforma se há versão mais nova deste servidor MCP publicada e o que mudou.\n\nCompara a versão instalada com a maior tag do repositório de origem e,\nhavendo diferença, lista as entradas do CHANGELOG no intervalo e o comando\nde atualização. Ignora o cache: a resposta é sempre a consulta de agora.\n",
+        "inputSchema": {
+          "properties": {},
+          "title": "check_updatesArguments",
+          "type": "object"
+        },
+        "name": "check_updates",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "check_updatesOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nRetorna todas as colunas de uma tabela Sankhya com a descrição em português\ndo dicionário e, para os campos enumerados, TODOS os valores aceitos com o\nrespectivo rótulo (ex.: TIPMOV → `P=Pedido de venda; V=Venda; C=Compra`).\nAceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).\n\nChame esta tool ANTES de escrever qualquer WHERE com literal: os códigos do\nSankhya não são adivinháveis pelo nome do campo e vários são parecidos entre\nsi. Em TIPMOV, `V` (Venda) e `P` (Pedido de venda) são ambos válidos — usar\num pelo outro devolve o documento errado, sem nenhum erro de SQL.\n\nExemplos:\n  describe_table(\"TGFCAB\")\n  describe_table(\"CabecalhoNota\")\n",
+        "inputSchema": {
+          "properties": {
+            "table_name": {
+              "title": "Table Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "table_name"
+          ],
+          "title": "describe_tableArguments",
+          "type": "object"
+        },
+        "name": "describe_table",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "describe_tableOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nRetorna as foreign keys de uma tabela: qual coluna local aponta\npara qual tabela/coluna de destino.\nAceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).\n\nExemplos:\n  get_foreign_keys(\"TGFITE\")\n  get_foreign_keys(\"ItemNota\")\n",
+        "inputSchema": {
+          "properties": {
+            "table_name": {
+              "title": "Table Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "table_name"
+          ],
+          "title": "get_foreign_keysArguments",
+          "type": "object"
+        },
+        "name": "get_foreign_keys",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "get_foreign_keysOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nLista os índices de uma tabela e suas colunas.\nÚtil para otimizar queries e entender chaves de busca.\nAceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).\n\nExemplos:\n  get_indexes(\"TGFCAB\")\n  get_indexes(\"CabecalhoNota\")\n",
+        "inputSchema": {
+          "properties": {
+            "table_name": {
+              "title": "Table Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "table_name"
+          ],
+          "title": "get_indexesArguments",
+          "type": "object"
+        },
+        "name": "get_indexes",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "get_indexesOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nLista os módulos do Sankhya agrupando as tabelas pelo prefixo de\n3 caracteres do nome (TGFCAB, TGFITE e TGFPAR contam para TGF), com a\ncontagem de tabelas de cada módulo.\n\nRetorna uma visão geral dos módulos disponíveis no schema. Prefixo com uma\ntabela só fica de fora. Tabelas customizadas aparecem sob `AD_`.\n",
+        "inputSchema": {
+          "properties": {},
+          "title": "list_modulesArguments",
+          "type": "object"
+        },
+        "name": "list_modules",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "list_modulesOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nExecuta uma query SELECT na base Sankhya local e retorna até\n`limit` linhas formatadas como tabela Markdown.\n\nATENÇÃO: Apenas SELECT é permitido. Queries de escrita serão bloqueadas.\n\nAntes de filtrar por um valor literal (`WHERE TIPMOV = 'P'`), chame\n`describe_table` na tabela e copie o valor da coluna `opcoes`. Os códigos do\nSankhya são de uma letra e parecidos entre si — `V` é Venda e `P` é Pedido\nde venda —, e usar um pelo outro devolve o documento errado sem erro de SQL.\n\nA sintaxe é a do banco configurado — no Oracle use `ROWNUM <= 5`,\nno SQL Server use `SELECT TOP (5) ...`.\n",
+        "inputSchema": {
+          "properties": {
+            "limit": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            },
+            "sql": {
+              "title": "Sql",
+              "type": "string"
+            }
+          },
+          "required": [
+            "sql"
+          ],
+          "title": "run_queryArguments",
+          "type": "object"
+        },
+        "name": "run_query",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "run_queryOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nBusca em quais tabelas existe um campo com o nome informado.\nPermite filtrar por prefixo de tabela.\n\nTraz a descrição de cada campo em português vinda do dicionário Sankhya.\nA mesma coluna pode significar coisas diferentes em tabelas diferentes, e é\na descrição que separa uma da outra.\n\nExemplos:\n  search_columns(\"CODPARC\")           → onde CODPARC aparece\n  search_columns(\"CODPARC\", \"TGF\")    → apenas em tabelas TGF*\n  search_columns(\"DTFATUR\")           → onde está o campo de faturamento\n",
+        "inputSchema": {
+          "properties": {
+            "column_keyword": {
+              "title": "Column Keyword",
+              "type": "string"
+            },
+            "table_keyword": {
+              "default": "",
+              "title": "Table Keyword",
+              "type": "string"
+            }
+          },
+          "required": [
+            "column_keyword"
+          ],
+          "title": "search_columnsArguments",
+          "type": "object"
+        },
+        "name": "search_columns",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "search_columnsOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nBusca instâncias (EntityNames) do Sankhya por nome ou descrição.\nÚtil para descobrir qual EntityName ou tabela corresponde a um conceito de negócio.\n\nParâmetros:\n  keyword   — termo de busca em português ou nome de entidade\n  only_root — se True, retorna apenas instâncias raiz (exclui sub-instâncias com filtro)\n\nExemplos:\n  search_entities(\"nota fiscal\")   → entidades de NF\n  search_entities(\"pedido\")        → entidades de pedido de venda\n  search_entities(\"parceiro\")      → entidades de parceiro/cliente/fornecedor\n  search_entities(\"CabecalhoNota\") → busca direta por EntityName\n",
+        "inputSchema": {
+          "properties": {
+            "keyword": {
+              "title": "Keyword",
+              "type": "string"
+            },
+            "only_root": {
+              "default": false,
+              "title": "Only Root",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "keyword"
+          ],
+          "title": "search_entitiesArguments",
+          "type": "object"
+        },
+        "name": "search_entities",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "search_entitiesOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nBusca tabelas cujo nome contenha o termo informado.\nÚtil para descobrir tabelas relacionadas a um módulo.\n\nTraz a descrição da tabela em português vinda do dicionário Sankhya, para\nvocê saber qual das candidatas é a certa sem abrir uma por uma.\n\nExemplos:\n  search_tables(\"TGF\")   → todas as tabelas de movimento\n  search_tables(\"PARC\")  → tabelas relacionadas a parceiros\n  search_tables(\"FIN\")   → tabelas financeiras\n",
+        "inputSchema": {
+          "properties": {
+            "keyword": {
+              "title": "Keyword",
+              "type": "string"
+            }
+          },
+          "required": [
+            "keyword"
+          ],
+          "title": "search_tablesArguments",
+          "type": "object"
+        },
+        "name": "search_tables",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "search_tablesOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nRetorna uma amostra de dados reais de uma tabela.\nÚtil para entender o conteúdo e o formato dos campos.\nAceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).\n\nColunas enumeradas vêm com o rótulo do dicionário ao lado do código\n(`L (Liberada)`), então a amostra também serve para conferir quais valores\na tabela realmente usa — inclusive valor gravado fora do domínio declarado,\nque aparece sem rótulo.\n\nTabela Sankhya é larga (TGFTOP passa de 600 colunas). Sem `columns`, a\namostra traz apenas as primeiras colunas na ordem da tabela e avisa quantas\nficaram de fora — informe `columns` para ver exatamente as que interessam.\n\nParâmetros:\n  columns — colunas a exibir, separadas por vírgula. Case-insensitive e\n            tolerante a espaços. Nome inexistente é reportado na saída.\n\nFluxo natural: chame `describe_table` primeiro para conhecer os nomes das\ncolunas, depois `table_sample` com as colunas de interesse.\n\nExemplos:\n  table_sample(\"TGFCAB\", limit=5)\n  table_sample(\"TGFCAB\", limit=5, columns=\"NUNOTA,CODPARC,VLRNOTA\")\n  table_sample(\"TipoOperacao\", limit=5, columns=\"CODTIPOPER, DESCROPER\")\n",
+        "inputSchema": {
+          "properties": {
+            "columns": {
+              "default": "",
+              "title": "Columns",
+              "type": "string"
+            },
+            "limit": {
+              "default": 10,
+              "title": "Limit",
+              "type": "integer"
+            },
+            "table_name": {
+              "title": "Table Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "table_name"
+          ],
+          "title": "table_sampleArguments",
+          "type": "object"
+        },
+        "name": "table_sample",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "table_sampleOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nValida a sintaxe de uma query sem executá-la de fato.\nCheca erros de sintaxe, tabelas inexistentes e colunas inválidas pelo\nplano estimado do banco (EXPLAIN PLAN no Oracle, SHOWPLAN_ALL no SQL Server).\n\nExemplo: validate_query(\"SELECT NUNOTA, CODPARC FROM TGFCAB WHERE CODTIPOPER = 1\")\n",
+        "inputSchema": {
+          "properties": {
+            "sql": {
+              "title": "Sql",
+              "type": "string"
+            }
+          },
+          "required": [
+            "sql"
+          ],
+          "title": "validate_queryArguments",
+          "type": "object"
+        },
+        "name": "validate_query",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "validate_queryOutput",
+          "type": "object"
+        }
+      }
+    ]
+  },
+  "vazio": {
+    "chamadas": [
+      {
+        "argumentos": {
+          "table_name": "TGFCAB"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "Nada encontrado para `TGFCAB`, e o nome não corresponde a nenhum EntityName ativo no dicionário (TDDINS). Use `search_entities(\"TGFCAB\")` para descobrir o nome correto.",
+                "type": "text"
+              }
+            ],
+            "isError": false,
+            "structuredContent": {
+              "result": "Nada encontrado para `TGFCAB`, e o nome não corresponde a nenhum EntityName ativo no dicionário (TDDINS). Use `search_entities(\"TGFCAB\")` para descobrir o nome correto."
+            }
+          }
+        },
+        "tool": "describe_table"
+      },
+      {
+        "argumentos": {
+          "keyword": "TGF"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "_Nenhum resultado encontrado._",
+                "type": "text"
+              }
+            ],
+            "isError": false,
+            "structuredContent": {
+              "result": "_Nenhum resultado encontrado._"
+            }
+          }
+        },
+        "tool": "search_tables"
+      },
+      {
+        "argumentos": {
+          "column_keyword": "TIPMOV"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "_Nenhum resultado encontrado._",
+                "type": "text"
+              }
+            ],
+            "isError": false,
+            "structuredContent": {
+              "result": "_Nenhum resultado encontrado._"
+            }
+          }
+        },
+        "tool": "search_columns"
+      },
+      {
+        "argumentos": {
+          "table_name": "TGFCAB"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "Nada encontrado para `TGFCAB`, e o nome não corresponde a nenhum EntityName ativo no dicionário (TDDINS). Use `search_entities(\"TGFCAB\")` para descobrir o nome correto.",
+                "type": "text"
+              }
+            ],
+            "isError": false,
+            "structuredContent": {
+              "result": "Nada encontrado para `TGFCAB`, e o nome não corresponde a nenhum EntityName ativo no dicionário (TDDINS). Use `search_entities(\"TGFCAB\")` para descobrir o nome correto."
+            }
+          }
+        },
+        "tool": "get_foreign_keys"
+      },
+      {
+        "argumentos": {
+          "table_name": "TGFCAB"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "Nada encontrado para `TGFCAB`, e o nome não corresponde a nenhum EntityName ativo no dicionário (TDDINS). Use `search_entities(\"TGFCAB\")` para descobrir o nome correto.",
+                "type": "text"
+              }
+            ],
+            "isError": false,
+            "structuredContent": {
+              "result": "Nada encontrado para `TGFCAB`, e o nome não corresponde a nenhum EntityName ativo no dicionário (TDDINS). Use `search_entities(\"TGFCAB\")` para descobrir o nome correto."
+            }
+          }
+        },
+        "tool": "get_indexes"
+      },
+      {
+        "argumentos": {
+          "sql": "SELECT 1 FROM DUAL"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "_Query executada sem retorno de linhas._",
+                "type": "text"
+              }
+            ],
+            "isError": false,
+            "structuredContent": {
+              "result": "_Query executada sem retorno de linhas._"
+            }
+          }
+        },
+        "tool": "run_query"
+      },
+      {
+        "argumentos": {
+          "sql": "SELECT 1 FROM DUAL"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "✅ Query válida (sem plano retornado).",
+                "type": "text"
+              }
+            ],
+            "isError": false,
+            "structuredContent": {
+              "result": "✅ Query válida (sem plano retornado)."
+            }
+          }
+        },
+        "tool": "validate_query"
+      },
+      {
+        "argumentos": {
+          "table_name": "TGFCAB"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "Tabela `TGFCAB` está vazia ou não existe.",
+                "type": "text"
+              }
+            ],
+            "isError": false,
+            "structuredContent": {
+              "result": "Tabela `TGFCAB` está vazia ou não existe."
+            }
+          }
+        },
+        "tool": "table_sample"
+      },
+      {
+        "argumentos": {
+          "keyword": "Nota"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "_Nenhuma entidade encontrada para `Nota`._",
+                "type": "text"
+              }
+            ],
+            "isError": false,
+            "structuredContent": {
+              "result": "_Nenhuma entidade encontrada para `Nota`._"
+            }
+          }
+        },
+        "tool": "search_entities"
+      },
+      {
+        "argumentos": {},
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "## Módulos do Schema Sankhya\n\n_Nenhum resultado encontrado._",
+                "type": "text"
+              }
+            ],
+            "isError": false,
+            "structuredContent": {
+              "result": "## Módulos do Schema Sankhya\n\n_Nenhum resultado encontrado._"
+            }
+          }
+        },
+        "tool": "list_modules"
+      },
+      {
+        "argumentos": {},
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "Versão instalada: **<VERSAO>**.\n\n⚠️ Não foi possível consultar as versões publicadas. Verifique se o `git` está no PATH, se este diretório é um clone com `origin` configurado e se há acesso à rede.",
+                "type": "text"
+              }
+            ],
+            "isError": false,
+            "structuredContent": {
+              "result": "Versão instalada: **<VERSAO>**.\n\n⚠️ Não foi possível consultar as versões publicadas. Verifique se o `git` está no PATH, se este diretório é um clone com `origin` configurado e se há acesso à rede."
+            }
+          }
+        },
+        "tool": "check_updates"
+      },
+      {
+        "argumentos": {
+          "sql": "DELETE FROM TGFCAB"
+        },
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "❌ Apenas comandos SELECT (ou WITH ... SELECT) são permitidos.",
+                "type": "text"
+              }
+            ],
+            "isError": false,
+            "structuredContent": {
+              "result": "❌ Apenas comandos SELECT (ou WITH ... SELECT) são permitidos."
+            }
+          }
+        },
+        "tool": "run_query"
+      },
+      {
+        "argumentos": {},
+        "resposta": {
+          "result": {
+            "content": [
+              {
+                "text": "Error executing tool describe_table: 1 validation error for describe_tableArguments\ntable_name\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.14/v/missing",
+                "type": "text"
+              }
+            ],
+            "isError": true
+          }
+        },
+        "tool": "describe_table"
+      }
+    ],
+    "instructions": "Servidor de exploração do schema do banco do Sankhya ERP (Oracle ou SQL Server, conforme SANKHYA_DB_TYPE). Versão <VERSAO>.\n\nAÇÃO IMEDIATA — LEIA ANTES DE QUALQUER OUTRA DECISÃO:\nQuando o usuário mencionar tabelas, campos, queries, SQL, schema, ou qualquer entidade do Sankhya (notas, produtos, parceiros, qualidade, amostras, laudos, etc.), sua PRIMEIRA ação deve ser chamar search_tables ou describe_table deste MCP. Não use Agent, não use Bash, não use Grep, não tente pesquisar no código local. Vá direto às tools deste MCP como primeiro passo.\n\nFLUXO CORRETO:\n1. Usuário pede algo relacionado ao banco/schema → chame search_tables imediatamente\n2. Identifique as tabelas relevantes → chame describe_table para cada uma\n3. Com o schema real em mãos → escreva a query\n4. NUNCA pule os passos 1 e 2. NUNCA invente nomes de tabelas ou colunas.\n\nLITERAIS EM WHERE — REGRA ABSOLUTA:\nAntes de escrever qualquer filtro com valor literal (`WHERE TIPMOV = 'P'`, `STATUSNOTA = 'L'`, `ATIVO = 'S'`), chame describe_table na tabela e use exatamente um dos valores listados na coluna `opcoes` daquele campo. Os códigos do Sankhya são de uma letra e enganosamente parecidos: em TGFCAB.TIPMOV, `V` é Venda e `P` é Pedido de venda; escolher pelo nome do campo ou pelo português do pedido do usuário devolve o documento errado sem levantar erro de SQL. O mesmo campo tem domínio DIFERENTE em tabelas diferentes (TIPMOV existe em 17 tabelas), então consulte a tabela que a sua query realmente usa. Se o campo não estiver em `opcoes`, ele não é enumerado e o valor vem do dado.\nA lista de `opcoes` é o que o dicionário declara, e NÃO garante esgotar o que está gravado: há base com valor em uso fora da lista. Para filtro por igualdade, use a lista. Para filtro exaustivo (`IN`, `NOT IN`) ou para agrupar por esse campo, confirme antes com `table_sample` ou um `SELECT campo, COUNT(*) ... GROUP BY campo`.\n\nPROIBIÇÕES:\n- Só delegue tarefas que dependem deste MCP para subagents cuja definição inclua as tools `mcp__sankhya-schema__*`. Na dúvida, resolva no agente principal.\n- NUNCA tente conexão direta ao banco.\n- NUNCA invente, chute ou assuma credenciais.\n- NUNCA use listMcpResources para tentar acessar este servidor. Use as tools diretamente: search_tables, describe_table, etc.\n- Se uma tool falhar, informe o usuário e aguarde. Não contorne com scripts ou outros meios.",
+    "protocolVersion": "2025-11-25",
+    "tools": [
+      {
+        "description": "\nInforma se há versão mais nova deste servidor MCP publicada e o que mudou.\n\nCompara a versão instalada com a maior tag do repositório de origem e,\nhavendo diferença, lista as entradas do CHANGELOG no intervalo e o comando\nde atualização. Ignora o cache: a resposta é sempre a consulta de agora.\n",
+        "inputSchema": {
+          "properties": {},
+          "title": "check_updatesArguments",
+          "type": "object"
+        },
+        "name": "check_updates",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "check_updatesOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nRetorna todas as colunas de uma tabela Sankhya com a descrição em português\ndo dicionário e, para os campos enumerados, TODOS os valores aceitos com o\nrespectivo rótulo (ex.: TIPMOV → `P=Pedido de venda; V=Venda; C=Compra`).\nAceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).\n\nChame esta tool ANTES de escrever qualquer WHERE com literal: os códigos do\nSankhya não são adivinháveis pelo nome do campo e vários são parecidos entre\nsi. Em TIPMOV, `V` (Venda) e `P` (Pedido de venda) são ambos válidos — usar\num pelo outro devolve o documento errado, sem nenhum erro de SQL.\n\nExemplos:\n  describe_table(\"TGFCAB\")\n  describe_table(\"CabecalhoNota\")\n",
+        "inputSchema": {
+          "properties": {
+            "table_name": {
+              "title": "Table Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "table_name"
+          ],
+          "title": "describe_tableArguments",
+          "type": "object"
+        },
+        "name": "describe_table",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "describe_tableOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nRetorna as foreign keys de uma tabela: qual coluna local aponta\npara qual tabela/coluna de destino.\nAceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).\n\nExemplos:\n  get_foreign_keys(\"TGFITE\")\n  get_foreign_keys(\"ItemNota\")\n",
+        "inputSchema": {
+          "properties": {
+            "table_name": {
+              "title": "Table Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "table_name"
+          ],
+          "title": "get_foreign_keysArguments",
+          "type": "object"
+        },
+        "name": "get_foreign_keys",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "get_foreign_keysOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nLista os índices de uma tabela e suas colunas.\nÚtil para otimizar queries e entender chaves de busca.\nAceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).\n\nExemplos:\n  get_indexes(\"TGFCAB\")\n  get_indexes(\"CabecalhoNota\")\n",
+        "inputSchema": {
+          "properties": {
+            "table_name": {
+              "title": "Table Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "table_name"
+          ],
+          "title": "get_indexesArguments",
+          "type": "object"
+        },
+        "name": "get_indexes",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "get_indexesOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nLista os módulos do Sankhya agrupando as tabelas pelo prefixo de\n3 caracteres do nome (TGFCAB, TGFITE e TGFPAR contam para TGF), com a\ncontagem de tabelas de cada módulo.\n\nRetorna uma visão geral dos módulos disponíveis no schema. Prefixo com uma\ntabela só fica de fora. Tabelas customizadas aparecem sob `AD_`.\n",
+        "inputSchema": {
+          "properties": {},
+          "title": "list_modulesArguments",
+          "type": "object"
+        },
+        "name": "list_modules",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "list_modulesOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nExecuta uma query SELECT na base Sankhya local e retorna até\n`limit` linhas formatadas como tabela Markdown.\n\nATENÇÃO: Apenas SELECT é permitido. Queries de escrita serão bloqueadas.\n\nAntes de filtrar por um valor literal (`WHERE TIPMOV = 'P'`), chame\n`describe_table` na tabela e copie o valor da coluna `opcoes`. Os códigos do\nSankhya são de uma letra e parecidos entre si — `V` é Venda e `P` é Pedido\nde venda —, e usar um pelo outro devolve o documento errado sem erro de SQL.\n\nA sintaxe é a do banco configurado — no Oracle use `ROWNUM <= 5`,\nno SQL Server use `SELECT TOP (5) ...`.\n",
+        "inputSchema": {
+          "properties": {
+            "limit": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            },
+            "sql": {
+              "title": "Sql",
+              "type": "string"
+            }
+          },
+          "required": [
+            "sql"
+          ],
+          "title": "run_queryArguments",
+          "type": "object"
+        },
+        "name": "run_query",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "run_queryOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nBusca em quais tabelas existe um campo com o nome informado.\nPermite filtrar por prefixo de tabela.\n\nTraz a descrição de cada campo em português vinda do dicionário Sankhya.\nA mesma coluna pode significar coisas diferentes em tabelas diferentes, e é\na descrição que separa uma da outra.\n\nExemplos:\n  search_columns(\"CODPARC\")           → onde CODPARC aparece\n  search_columns(\"CODPARC\", \"TGF\")    → apenas em tabelas TGF*\n  search_columns(\"DTFATUR\")           → onde está o campo de faturamento\n",
+        "inputSchema": {
+          "properties": {
+            "column_keyword": {
+              "title": "Column Keyword",
+              "type": "string"
+            },
+            "table_keyword": {
+              "default": "",
+              "title": "Table Keyword",
+              "type": "string"
+            }
+          },
+          "required": [
+            "column_keyword"
+          ],
+          "title": "search_columnsArguments",
+          "type": "object"
+        },
+        "name": "search_columns",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "search_columnsOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nBusca instâncias (EntityNames) do Sankhya por nome ou descrição.\nÚtil para descobrir qual EntityName ou tabela corresponde a um conceito de negócio.\n\nParâmetros:\n  keyword   — termo de busca em português ou nome de entidade\n  only_root — se True, retorna apenas instâncias raiz (exclui sub-instâncias com filtro)\n\nExemplos:\n  search_entities(\"nota fiscal\")   → entidades de NF\n  search_entities(\"pedido\")        → entidades de pedido de venda\n  search_entities(\"parceiro\")      → entidades de parceiro/cliente/fornecedor\n  search_entities(\"CabecalhoNota\") → busca direta por EntityName\n",
+        "inputSchema": {
+          "properties": {
+            "keyword": {
+              "title": "Keyword",
+              "type": "string"
+            },
+            "only_root": {
+              "default": false,
+              "title": "Only Root",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "keyword"
+          ],
+          "title": "search_entitiesArguments",
+          "type": "object"
+        },
+        "name": "search_entities",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "search_entitiesOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nBusca tabelas cujo nome contenha o termo informado.\nÚtil para descobrir tabelas relacionadas a um módulo.\n\nTraz a descrição da tabela em português vinda do dicionário Sankhya, para\nvocê saber qual das candidatas é a certa sem abrir uma por uma.\n\nExemplos:\n  search_tables(\"TGF\")   → todas as tabelas de movimento\n  search_tables(\"PARC\")  → tabelas relacionadas a parceiros\n  search_tables(\"FIN\")   → tabelas financeiras\n",
+        "inputSchema": {
+          "properties": {
+            "keyword": {
+              "title": "Keyword",
+              "type": "string"
+            }
+          },
+          "required": [
+            "keyword"
+          ],
+          "title": "search_tablesArguments",
+          "type": "object"
+        },
+        "name": "search_tables",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "search_tablesOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nRetorna uma amostra de dados reais de uma tabela.\nÚtil para entender o conteúdo e o formato dos campos.\nAceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).\n\nColunas enumeradas vêm com o rótulo do dicionário ao lado do código\n(`L (Liberada)`), então a amostra também serve para conferir quais valores\na tabela realmente usa — inclusive valor gravado fora do domínio declarado,\nque aparece sem rótulo.\n\nTabela Sankhya é larga (TGFTOP passa de 600 colunas). Sem `columns`, a\namostra traz apenas as primeiras colunas na ordem da tabela e avisa quantas\nficaram de fora — informe `columns` para ver exatamente as que interessam.\n\nParâmetros:\n  columns — colunas a exibir, separadas por vírgula. Case-insensitive e\n            tolerante a espaços. Nome inexistente é reportado na saída.\n\nFluxo natural: chame `describe_table` primeiro para conhecer os nomes das\ncolunas, depois `table_sample` com as colunas de interesse.\n\nExemplos:\n  table_sample(\"TGFCAB\", limit=5)\n  table_sample(\"TGFCAB\", limit=5, columns=\"NUNOTA,CODPARC,VLRNOTA\")\n  table_sample(\"TipoOperacao\", limit=5, columns=\"CODTIPOPER, DESCROPER\")\n",
+        "inputSchema": {
+          "properties": {
+            "columns": {
+              "default": "",
+              "title": "Columns",
+              "type": "string"
+            },
+            "limit": {
+              "default": 10,
+              "title": "Limit",
+              "type": "integer"
+            },
+            "table_name": {
+              "title": "Table Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "table_name"
+          ],
+          "title": "table_sampleArguments",
+          "type": "object"
+        },
+        "name": "table_sample",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "table_sampleOutput",
+          "type": "object"
+        }
+      },
+      {
+        "description": "\nValida a sintaxe de uma query sem executá-la de fato.\nCheca erros de sintaxe, tabelas inexistentes e colunas inválidas pelo\nplano estimado do banco (EXPLAIN PLAN no Oracle, SHOWPLAN_ALL no SQL Server).\n\nExemplo: validate_query(\"SELECT NUNOTA, CODPARC FROM TGFCAB WHERE CODTIPOPER = 1\")\n",
+        "inputSchema": {
+          "properties": {
+            "sql": {
+              "title": "Sql",
+              "type": "string"
+            }
+          },
+          "required": [
+            "sql"
+          ],
+          "title": "validate_queryArguments",
+          "type": "object"
+        },
+        "name": "validate_query",
+        "outputSchema": {
+          "properties": {
+            "result": {
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          "required": [
+            "result"
+          ],
+          "title": "validate_queryOutput",
+          "type": "object"
+        }
+      }
+    ]
+  }
+}
