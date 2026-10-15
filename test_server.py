@@ -1066,6 +1066,29 @@ def test_instrucoes_exigem_consultar_dominio_antes_do_literal():
     assert "opcoes" in instrucoes
 
 
+def test_toda_tool_preserva_mensagem_de_erro():
+    # Tool nova sem o decorator funciona no SDK 1.x e só perde a mensagem de
+    # erro no 2.x — nenhum outro teste pegaria o esquecimento.
+    fonte = (Path(__file__).parent / "src" / "server.py").read_text(encoding="utf-8")
+    tools = fonte.count("@mcp.tool()\n")
+    decoradas = fonte.count("@mcp.tool()\n@_preservar_mensagem_de_erro\ndef ")
+    assert tools > 0 and decoradas == tools, f"{decoradas} de {tools} tools com o decorator"
+
+
+def test_erro_da_tool_vira_tool_error_com_a_mesma_mensagem():
+    @server._preservar_mensagem_de_erro
+    def falha():
+        raise Exception("ORA-01017: invalid username/password; logon denied")
+
+    try:
+        falha()
+    except server.ToolError as exc:
+        assert str(exc) == "ORA-01017: invalid username/password; logon denied"
+        assert isinstance(exc.__cause__, Exception)
+    else:
+        raise AssertionError("deveria levantar ToolError")
+
+
 def test_pool_oracle_criado_uma_vez_sob_chamadas_simultaneas():
     # No SDK 2.x cada tool roda numa worker thread: chamadas simultâneas logo
     # após o boot disputam a criação do pool. Sem lock, cada uma cria o seu e

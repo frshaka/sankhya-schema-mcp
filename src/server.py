@@ -8,10 +8,12 @@ de um banco para o outro — queries de catálogo, conexão, transação de leit
 plano de execução — vive em `dialects.py`.
 """
 
+import functools
 import re
 from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 
 from dialects import (
     BEGIN_READ_ONLY,
@@ -526,11 +528,31 @@ mcp = FastMCP(
 )
 
 
+def _preservar_mensagem_de_erro(fn):
+    """
+    Faz a mensagem da exceção chegar ao cliente MCP em qualquer versão do SDK.
+
+    No SDK 1.x toda exceção de tool vira `Error executing tool X: <mensagem>`.
+    No 2.x só a de `ToolError` mantém a mensagem; as demais viram apenas
+    `Error executing tool X`, e o usuário deixaria de ver o ORA-01017 da senha
+    errada ou o ORA-00942 da permissão. Convertida aqui, a resposta é a mesma
+    nas duas versões. `functools.wraps` preserva a assinatura que gera o schema.
+    """
+    @functools.wraps(fn)
+    def _envolvida(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as exc:
+            raise ToolError(str(exc)) from exc
+    return _envolvida
+
+
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
+@_preservar_mensagem_de_erro
 def describe_table(table_name: str) -> str:
     """
     Retorna todas as colunas de uma tabela Sankhya com a descrição em português
@@ -604,6 +626,7 @@ def describe_table(table_name: str) -> str:
 
 
 @mcp.tool()
+@_preservar_mensagem_de_erro
 def search_tables(keyword: str) -> str:
     """
     Busca tabelas cujo nome contenha o termo informado.
@@ -627,6 +650,7 @@ def search_tables(keyword: str) -> str:
 
 
 @mcp.tool()
+@_preservar_mensagem_de_erro
 def search_columns(column_keyword: str, table_keyword: str = "") -> str:
     """
     Busca em quais tabelas existe um campo com o nome informado.
@@ -657,6 +681,7 @@ def search_columns(column_keyword: str, table_keyword: str = "") -> str:
 
 
 @mcp.tool()
+@_preservar_mensagem_de_erro
 def get_foreign_keys(table_name: str) -> str:
     """
     Retorna as foreign keys de uma tabela: qual coluna local aponta
@@ -693,6 +718,7 @@ def get_foreign_keys(table_name: str) -> str:
 
 
 @mcp.tool()
+@_preservar_mensagem_de_erro
 def get_indexes(table_name: str) -> str:
     """
     Lista os índices de uma tabela e suas colunas.
@@ -713,6 +739,7 @@ def get_indexes(table_name: str) -> str:
 
 
 @mcp.tool()
+@_preservar_mensagem_de_erro
 def run_query(sql: str, limit: int = 50) -> str:
     """
     Executa uma query SELECT na base Sankhya local e retorna até
@@ -744,6 +771,7 @@ def run_query(sql: str, limit: int = 50) -> str:
 
 
 @mcp.tool()
+@_preservar_mensagem_de_erro
 def validate_query(sql: str) -> str:
     """
     Valida a sintaxe de uma query sem executá-la de fato.
@@ -775,6 +803,7 @@ def validate_query(sql: str) -> str:
 
 
 @mcp.tool()
+@_preservar_mensagem_de_erro
 def table_sample(table_name: str, limit: int = 10, columns: str = "") -> str:
     """
     Retorna uma amostra de dados reais de uma tabela.
@@ -851,6 +880,7 @@ def table_sample(table_name: str, limit: int = 10, columns: str = "") -> str:
 
 
 @mcp.tool()
+@_preservar_mensagem_de_erro
 def search_entities(keyword: str, only_root: bool = False) -> str:
     """
     Busca instâncias (EntityNames) do Sankhya por nome ou descrição.
@@ -892,6 +922,7 @@ def search_entities(keyword: str, only_root: bool = False) -> str:
 
 
 @mcp.tool()
+@_preservar_mensagem_de_erro
 def list_modules() -> str:
     """
     Lista os módulos do Sankhya agrupando as tabelas pelo prefixo de
@@ -907,6 +938,7 @@ def list_modules() -> str:
 
 
 @mcp.tool()
+@_preservar_mensagem_de_erro
 def check_updates() -> str:
     """
     Informa se há versão mais nova deste servidor MCP publicada e o que mudou.
