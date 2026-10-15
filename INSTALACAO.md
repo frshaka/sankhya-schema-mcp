@@ -573,28 +573,23 @@ A resposta traz a versão instalada, a publicada, as entradas do
 
 ### Atualizando
 
-```bash
-cd sankhya-schema-mcp
-git pull origin main
-```
-
-Se houver mudanças nas dependências, reinstale:
+O script de atualização faz o `git pull` e reinstala as dependências. O driver
+do SQL Server só é reinstalado se já estiver instalado.
 
 **Windows:**
 ```powershell
-.\.venv\Scripts\pip install -r requirements.txt
-# Somente se for usar SQL Server:
-.\.venv\Scripts\pip install -r requirements-sqlserver.txt
+pwsh -File sankhya-schema-mcp\update.ps1
 ```
 
 **Linux:**
 ```bash
-.venv/bin/pip install -r requirements.txt
-# Somente se for usar SQL Server:
-.venv/bin/pip install -r requirements-sqlserver.txt
+sankhya-schema-mcp/update.sh
 ```
 
-Reinicie o Claude Code após a atualização.
+Pode rodar com o Claude Code aberto. Reinicie o Claude Code após a atualização.
+
+Se você atualizar só com `git pull`, o servidor continua funcionando com as
+dependências antigas e o assistente avisa e oferece rodar o script.
 
 ---
 
@@ -848,5 +843,5 @@ SELECT VALUE FROM V$PARAMETER WHERE NAME = 'instance_name';
 | Reinstalar dependências | `.\.venv\Scripts\pip install -r requirements.txt` | `.venv/bin/pip install -r requirements.txt` |
 | Instalar driver do SQL Server | `.\.venv\Scripts\pip install -r requirements-sqlserver.txt` | `.venv/bin/pip install -r requirements-sqlserver.txt` |
 | Testar importação | `.\.venv\Scripts\python -c "import oracledb; print('OK')"` | `.venv/bin/python -c "import oracledb; print('OK')"` |
-| Atualizar projeto | `git pull origin main` | `git pull origin main` |
+| Atualizar projeto | `pwsh -File update.ps1` | `./update.sh` |
 | Ver logs do MCP | Reiniciar Claude Code com `--mcp-debug` | Reiniciar Claude Code com `--mcp-debug` |

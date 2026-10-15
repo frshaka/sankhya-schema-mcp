@@ -9,11 +9,22 @@ plano de execução — vive em `dialects.py`.
 """
 
 import functools
+import os
 import re
 from typing import Optional
 
-from mcp.server.fastmcp import FastMCP
-from mcp.server.fastmcp.exceptions import ToolError
+try:
+    from mcp.server.mcpserver import MCPServer
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    SDK_DESATUALIZADO = False
+except ImportError:
+    # Instalação que fez `git pull` sem reinstalar as dependências. Segue no SDK
+    # 1.x, onde as respostas são idênticas, e avisa para rodar o update.
+    from mcp.server.fastmcp import FastMCP as MCPServer
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    SDK_DESATUALIZADO = True
 
 from dialects import (
     BEGIN_READ_ONLY,
@@ -482,11 +493,31 @@ def assert_safe_identifier(name: str) -> Optional[str]:
 # devolve None e o servidor sobe igual — ver `updates.py`.
 _AVISO_UPDATE = update_notice()
 
-mcp = FastMCP(
+# Comando que atualiza código e dependências de uma vez. Rodá-lo com o cliente
+# MCP aberto é seguro: o pip substitui até os binários que o servidor em
+# execução mantém carregados no Windows.
+COMANDO_ATUALIZACAO = (
+    f'pwsh -File "{PROJECT_ROOT / "update.ps1"}"' if os.name == "nt"
+    else f'"{PROJECT_ROOT / "update.sh"}"'
+)
+
+# Vai para as `instructions` e para o `check_updates`. Pede ao modelo que
+# ofereça a execução: o cliente MCP mostra a confirmação antes de rodar.
+BLOCO_AVISO_DEPENDENCIAS = (
+    "⚠️ DEPENDÊNCIAS DESATUALIZADAS: este servidor está rodando com o SDK MCP "
+    "1.x e o projeto requer o 2.x. Ele funciona normalmente, mas na primeira "
+    "resposta avise o usuário e ofereça executar, com a confirmação dele, "
+    f"`{COMANDO_ATUALIZACAO}`. Explique que o comando baixa a versão publicada e "
+    "reinstala as dependências, e que depois é preciso reiniciar o cliente MCP.\n\n"
+    if SDK_DESATUALIZADO else ""
+)
+
+mcp = MCPServer(
     name="sankhya-schema",
     instructions=(
         f"Servidor de exploração do schema do banco do Sankhya ERP "
         f"(Oracle ou SQL Server, conforme SANKHYA_DB_TYPE). Versão {__version__}.\n\n"
+        + BLOCO_AVISO_DEPENDENCIAS
         + (f"⚠️ ATUALIZAÇÃO DISPONÍVEL: {_AVISO_UPDATE}\n\n" if _AVISO_UPDATE else "")
         +
         "AÇÃO IMEDIATA — LEIA ANTES DE QUALQUER OUTRA DECISÃO:\n"
@@ -946,7 +977,12 @@ def check_updates() -> str:
     Compara a versão instalada com a maior tag do repositório de origem e,
     havendo diferença, lista as entradas do CHANGELOG no intervalo e o comando
     de atualização. Ignora o cache: a resposta é sempre a consulta de agora.
+    Avisa também quando as dependências instaladas estão atrás do projeto.
     """
+    return BLOCO_AVISO_DEPENDENCIAS + _situacao_da_versao()
+
+
+def _situacao_da_versao() -> str:
     local = parse_version(__version__)
     remota = latest_version(use_cache=False)
 
@@ -969,12 +1005,9 @@ def check_updates() -> str:
         corpo += f"{mudancas}\n\n"
     return corpo + (
         "### Como atualizar\n\n"
-        "```bash\n"
-        f"cd {PROJECT_ROOT}\n"
-        "git pull\n"
-        "```\n\n"
-        "Depois reinicie o cliente MCP. Se o `CHANGELOG` mencionar dependência "
-        "nova, rode também a instalação de dependências do `README`."
+        f"```\n{COMANDO_ATUALIZACAO}\n```\n\n"
+        "O comando baixa a versão publicada e reinstala as dependências. Depois "
+        "reinicie o cliente MCP."
     )
 
 

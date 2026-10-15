@@ -10,8 +10,17 @@ on:
 
 jobs:
   testes:
-    name: Autoteste das funções puras
+    name: Autoteste (SDK MCP ${{ matrix.sdk.nome }})
     runs-on: ubuntu-latest
+    # O servidor roda nos dois SDKs: o 2.x é o do requirements.txt e o 1.x é o
+    # de quem fez `git pull` sem reinstalar as dependências (fallback em
+    # src/server.py). Um SDK quebrado não pode passar despercebido pelo outro.
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk:
+          - { nome: "2.x", pacote: "" }
+          - { nome: "1.x", pacote: "mcp[cli]>=1.0.0,<2.0.0" }
 
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +34,10 @@ jobs:
       # precisa do Instant Client para o import: os testes não abrem conexão.
       - name: Instala as dependências
         run: pip install -r requirements.txt
+
+      - name: Troca para o SDK MCP 1.x
+        if: matrix.sdk.pacote != ''
+        run: pip install "${{ matrix.sdk.pacote }}"
 
       - name: Roda os testes
         run: python test_server.py

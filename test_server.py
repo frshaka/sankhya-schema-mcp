@@ -6,6 +6,7 @@ Execute:
     Linux:   .venv/bin/python test_server.py
 """
 
+import importlib.util
 import json
 import os
 import queue
@@ -1066,6 +1067,30 @@ def test_instrucoes_exigem_consultar_dominio_antes_do_literal():
     assert "opcoes" in instrucoes
 
 
+def test_aviso_de_dependencias_acompanha_o_sdk_instalado():
+    # Só quem ficou no SDK 1.x (git pull sem reinstalar) recebe o aviso, e ele
+    # precisa chegar ao modelo pelas instructions e pelo check_updates.
+    sdk_2x = importlib.util.find_spec("mcp.server.mcpserver") is not None
+    assert server.SDK_DESATUALIZADO is (not sdk_2x)
+    if not server.SDK_DESATUALIZADO:
+        assert server.BLOCO_AVISO_DEPENDENCIAS == ""
+        return
+    assert server.COMANDO_ATUALIZACAO in server.BLOCO_AVISO_DEPENDENCIAS
+    assert server.BLOCO_AVISO_DEPENDENCIAS in server.mcp.instructions
+    original = server.latest_version
+    server.latest_version = lambda use_cache=True: None
+    try:
+        assert server.check_updates().startswith(server.BLOCO_AVISO_DEPENDENCIAS)
+    finally:
+        server.latest_version = original
+
+
+def test_comando_de_atualizacao_aponta_para_script_existente():
+    for script in ("update.ps1", "update.sh"):
+        assert (server.PROJECT_ROOT / script).is_file(), script
+    assert "update." in server.COMANDO_ATUALIZACAO
+
+
 def test_toda_tool_preserva_mensagem_de_erro():
     # Tool nova sem o decorator funciona no SDK 1.x e só perde a mensagem de
     # erro no 2.x — nenhum outro teste pegaria o esquecimento.
@@ -1222,6 +1247,11 @@ class _ClienteStdio:
 
 def _normalizar(texto):
     """Tira do contrato o que muda a cada release ou a cada dia, não por versão do SDK."""
+    # O aviso de SDK 1.x tem teste próprio; aqui o contrato tem de ser o mesmo
+    # com ou sem ele, nos dois SDKs da matrix do CI.
+    aviso = json.dumps(server.BLOCO_AVISO_DEPENDENCIAS, ensure_ascii=False)[1:-1]
+    if aviso:
+        texto = texto.replace(aviso, "")
     texto = texto.replace(__version__, "<VERSAO>")
     return re.sub(r"⚠️ ATUALIZAÇÃO DISPONÍVEL: .*?\n\n", "", texto, flags=re.S)
 

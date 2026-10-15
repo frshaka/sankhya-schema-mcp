@@ -233,7 +233,7 @@
     "protocolVersion": "2025-11-25",
     "tools": [
       {
-        "description": "\nInforma se há versão mais nova deste servidor MCP publicada e o que mudou.\n\nCompara a versão instalada com a maior tag do repositório de origem e,\nhavendo diferença, lista as entradas do CHANGELOG no intervalo e o comando\nde atualização. Ignora o cache: a resposta é sempre a consulta de agora.\n",
+        "description": "\nInforma se há versão mais nova deste servidor MCP publicada e o que mudou.\n\nCompara a versão instalada com a maior tag do repositório de origem e,\nhavendo diferença, lista as entradas do CHANGELOG no intervalo e o comando\nde atualização. Ignora o cache: a resposta é sempre a consulta de agora.\nAvisa também quando as dependências instaladas estão atrás do projeto.\n",
         "inputSchema": {
           "properties": {},
           "title": "check_updatesArguments",
@@ -831,7 +831,7 @@
     "protocolVersion": "2025-11-25",
     "tools": [
       {
-        "description": "\nInforma se há versão mais nova deste servidor MCP publicada e o que mudou.\n\nCompara a versão instalada com a maior tag do repositório de origem e,\nhavendo diferença, lista as entradas do CHANGELOG no intervalo e o comando\nde atualização. Ignora o cache: a resposta é sempre a consulta de agora.\n",
+        "description": "\nInforma se há versão mais nova deste servidor MCP publicada e o que mudou.\n\nCompara a versão instalada com a maior tag do repositório de origem e,\nhavendo diferença, lista as entradas do CHANGELOG no intervalo e o comando\nde atualização. Ignora o cache: a resposta é sempre a consulta de agora.\nAvisa também quando as dependências instaladas estão atrás do projeto.\n",
         "inputSchema": {
           "properties": {},
           "title": "check_updatesArguments",

@@ -390,6 +390,9 @@ sankhya-schema-mcp/
 ├── start.sh               # Script de inicialização (Linux)
 ├── setup.ps1              # Instalador automático (Windows)
 ├── setup.sh               # Instalador automático (Linux)
+├── update.ps1             # Atualização: código + dependências (Windows)
+├── update.sh              # Atualização: código + dependências (Linux)
+├── contrato_mcp.json      # O que o cliente MCP recebe, congelado para o teste
 ├── requirements.txt       # Dependências Python (Oracle, padrão)
 ├── requirements-sqlserver.txt  # Driver do SQL Server (opcional)
 ├── test_server.py         # Autoteste das funções puras (não requer banco)
@@ -419,13 +422,25 @@ check_updates
 
 ### Como atualizar
 
-```bash
-cd <pasta-do-mcp>
-git pull
+O script baixa a versão publicada e reinstala as dependências (inclusive o
+driver do SQL Server, se estiver instalado):
+
+```powershell
+# Windows
+pwsh -File <pasta-do-mcp>\update.ps1
 ```
 
-Depois reinicie o cliente MCP. Se o CHANGELOG mencionar dependência nova, rode
-também a instalação de dependências.
+```bash
+# Linux/macOS
+<pasta-do-mcp>/update.sh
+```
+
+Pode rodar com o cliente MCP aberto; depois reinicie o cliente. Também dá para
+pedir ao assistente: o `check_updates` mostra o comando.
+
+Quem atualizar só com `git pull` continua funcionando: o servidor detecta as
+dependências antigas, segue com elas e pede ao assistente que ofereça rodar o
+script.
 
 ### Publicando uma versão (mantenedor)
 
