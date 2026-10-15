@@ -11,6 +11,7 @@ fechadas. Um dict de queries por dialeto e uma função de conexão bastam.
 
 import os
 import re
+import threading
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
@@ -474,6 +475,10 @@ def query(name: str, **fmt) -> str:
 
 _INSTANTCLIENT_DIR = str(Path(__file__).parent.parent / "instantclient")
 _pool = None
+# Serializa a criação do pool. No SDK MCP 2.x cada tool roda numa worker
+# thread, e duas chamadas logo após o boot criariam um pool cada — os demais
+# ficariam órfãos, com conexão aberta no banco até o processo terminar.
+_pool_lock = threading.Lock()
 
 
 def _set_current_schema(conn, requested_tag):
@@ -503,29 +508,33 @@ def _oracle_pool():
     acontecesse no import.
     """
     global _pool
-    if _pool is None:
-        import oracledb
+    if _pool is not None:
+        return _pool
+    with _pool_lock:
+        # Rechecagem: outra thread pode ter criado o pool enquanto esta esperava.
+        if _pool is None:
+            import oracledb
 
-        oracledb.init_oracle_client(lib_dir=_INSTANTCLIENT_DIR)
-        # service_name tem precedência sobre SID quando informado
-        if DB_CONFIG["service_name"]:
-            dsn = oracledb.makedsn(
-                DB_CONFIG["host"], DB_CONFIG["port"],
-                service_name=DB_CONFIG["service_name"],
+            oracledb.init_oracle_client(lib_dir=_INSTANTCLIENT_DIR)
+            # service_name tem precedência sobre SID quando informado
+            if DB_CONFIG["service_name"]:
+                dsn = oracledb.makedsn(
+                    DB_CONFIG["host"], DB_CONFIG["port"],
+                    service_name=DB_CONFIG["service_name"],
+                )
+            else:
+                dsn = oracledb.makedsn(
+                    DB_CONFIG["host"], DB_CONFIG["port"], sid=DB_CONFIG["sid"],
+                )
+            _pool = oracledb.create_pool(
+                user=DB_CONFIG["user"],
+                password=DB_CONFIG["password"],
+                dsn=dsn,
+                min=1,
+                max=5,
+                increment=1,
+                session_callback=_set_current_schema if DB_CONFIG["schema"] else None,
             )
-        else:
-            dsn = oracledb.makedsn(
-                DB_CONFIG["host"], DB_CONFIG["port"], sid=DB_CONFIG["sid"],
-            )
-        _pool = oracledb.create_pool(
-            user=DB_CONFIG["user"],
-            password=DB_CONFIG["password"],
-            dsn=dsn,
-            min=1,
-            max=5,
-            increment=1,
-            session_callback=_set_current_schema if DB_CONFIG["schema"] else None,
-        )
     return _pool
 
 

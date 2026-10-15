@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from contextlib import contextmanager
 from decimal import Decimal
 from pathlib import Path
@@ -1063,6 +1064,46 @@ def test_instrucoes_exigem_consultar_dominio_antes_do_literal():
     assert "LITERAIS EM WHERE" in instrucoes
     assert "describe_table" in instrucoes
     assert "opcoes" in instrucoes
+
+
+def test_pool_oracle_criado_uma_vez_sob_chamadas_simultaneas():
+    # No SDK 2.x cada tool roda numa worker thread: chamadas simultâneas logo
+    # após o boot disputam a criação do pool. Sem lock, cada uma cria o seu e
+    # todos menos um ficam órfãos com conexão aberta no banco.
+    qtd_threads = 8
+    largada = threading.Barrier(qtd_threads)
+    chamadas = {"init": 0, "create_pool": 0}
+
+    class _OracledbFalso:
+        @staticmethod
+        def init_oracle_client(**_kw):
+            chamadas["init"] += 1
+
+        @staticmethod
+        def makedsn(*_a, **_kw):
+            return "dsn"
+
+        @staticmethod
+        def create_pool(**_kw):
+            chamadas["create_pool"] += 1
+            time.sleep(0.05)  # janela em que outra thread veria `_pool is None`
+            return object()
+
+    def _disputar():
+        largada.wait()
+        dialects._oracle_pool()
+
+    original_modulo, original_pool = sys.modules.get("oracledb"), dialects._pool
+    sys.modules["oracledb"], dialects._pool = _OracledbFalso, None
+    try:
+        threads = [threading.Thread(target=_disputar) for _ in range(qtd_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+    finally:
+        sys.modules["oracledb"], dialects._pool = original_modulo, original_pool
+    assert chamadas == {"init": 1, "create_pool": 1}, chamadas
 
 
 # --- Contrato MCP: o que o cliente recebe pelo fio ---------------------------
