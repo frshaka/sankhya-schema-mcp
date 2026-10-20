@@ -219,7 +219,7 @@
           "result": {
             "content": [
               {
-                "text": "Error executing tool describe_table: 1 validation error for describe_tableArguments\ntable_name\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.14/v/missing",
+                "text": "Error executing tool describe_table: 1 validation error for describe_tableArguments\ntable_name\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/<PYDANTIC>/v/missing",
                 "type": "text"
               }
             ],
@@ -817,7 +817,7 @@
           "result": {
             "content": [
               {
-                "text": "Error executing tool describe_table: 1 validation error for describe_tableArguments\ntable_name\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.14/v/missing",
+                "text": "Error executing tool describe_table: 1 validation error for describe_tableArguments\ntable_name\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/<PYDANTIC>/v/missing",
                 "type": "text"
               }
             ],

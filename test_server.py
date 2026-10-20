@@ -1253,6 +1253,9 @@ def _normalizar(texto):
     if aviso:
         texto = texto.replace(aviso, "")
     texto = texto.replace(__version__, "<VERSAO>")
+    # O link da mensagem de validação traz a versão do pydantic instalada, que
+    # varia de ambiente para ambiente sem mudar nada do que o cliente recebe.
+    texto = re.sub(r"errors\.pydantic\.dev/[\d.]+/", "errors.pydantic.dev/<PYDANTIC>/", texto)
     return re.sub(r"⚠️ ATUALIZAÇÃO DISPONÍVEL: .*?\n\n", "", texto, flags=re.S)
 
 
