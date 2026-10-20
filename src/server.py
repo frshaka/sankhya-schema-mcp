@@ -497,7 +497,7 @@ _AVISO_UPDATE = update_notice()
 # MCP aberto é seguro: o pip substitui até os binários que o servidor em
 # execução mantém carregados no Windows.
 COMANDO_ATUALIZACAO = (
-    f'pwsh -File "{PROJECT_ROOT / "update.ps1"}"' if os.name == "nt"
+    f'pwsh -NoProfile -File "{PROJECT_ROOT / "update.ps1"}"' if os.name == "nt"
     else f'"{PROJECT_ROOT / "update.sh"}"'
 )
 

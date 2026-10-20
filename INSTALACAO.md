@@ -578,7 +578,7 @@ do SQL Server só é reinstalado se já estiver instalado.
 
 **Windows:**
 ```powershell
-pwsh -File sankhya-schema-mcp\update.ps1
+pwsh -NoProfile -File sankhya-schema-mcp\update.ps1
 ```
 
 **Linux:**
@@ -843,5 +843,5 @@ SELECT VALUE FROM V$PARAMETER WHERE NAME = 'instance_name';
 | Reinstalar dependências | `.\.venv\Scripts\pip install -r requirements.txt` | `.venv/bin/pip install -r requirements.txt` |
 | Instalar driver do SQL Server | `.\.venv\Scripts\pip install -r requirements-sqlserver.txt` | `.venv/bin/pip install -r requirements-sqlserver.txt` |
 | Testar importação | `.\.venv\Scripts\python -c "import oracledb; print('OK')"` | `.venv/bin/python -c "import oracledb; print('OK')"` |
-| Atualizar projeto | `pwsh -File update.ps1` | `./update.sh` |
+| Atualizar projeto | `pwsh -NoProfile -File update.ps1` | `./update.sh` |
 | Ver logs do MCP | Reiniciar Claude Code com `--mcp-debug` | Reiniciar Claude Code com `--mcp-debug` |

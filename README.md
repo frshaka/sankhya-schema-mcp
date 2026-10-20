@@ -427,7 +427,7 @@ driver do SQL Server, se estiver instalado):
 
 ```powershell
 # Windows
-pwsh -File <pasta-do-mcp>\update.ps1
+pwsh -NoProfile -File <pasta-do-mcp>\update.ps1
 ```
 
 ```bash

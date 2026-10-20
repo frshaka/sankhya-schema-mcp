@@ -14,8 +14,8 @@ arquivo. Uma seção vazia reprova a publicação.
 
 > **Dependência nova: reinstale as dependências ao atualizar.** O jeito mais
 > simples é o script novo, que faz o `git pull` e a reinstalação de uma vez:
-> `pwsh -File update.ps1` no Windows ou `./update.sh` no Linux, na pasta do
-> MCP. Depois reinicie o cliente MCP. Quem atualizar só com `git pull`
+> `pwsh -NoProfile -File update.ps1` no Windows ou `./update.sh` no Linux, na
+> pasta do MCP. Depois reinicie o cliente MCP. Quem atualizar só com `git pull`
 > continua funcionando: o servidor segue com as dependências antigas e o
 > assistente avisa e oferece rodar o script.
 
