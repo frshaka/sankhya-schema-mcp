@@ -233,6 +233,9 @@
     "protocolVersion": "2025-11-25",
     "tools": [
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Informa se há versão mais nova deste servidor MCP publicada e o que mudou.\n\nCompara a versão instalada com a maior tag do repositório de origem e,\nhavendo diferença, lista as entradas do CHANGELOG no intervalo e o comando\nde atualização. Ignora o cache: a resposta é sempre a consulta de agora.\nAvisa também quando as dependências instaladas estão atrás do projeto.",
         "inputSchema": {
           "properties": {},
@@ -255,6 +258,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Retorna todas as colunas de uma tabela Sankhya com a descrição em português\ndo dicionário e, para os campos enumerados, TODOS os valores aceitos com o\nrespectivo rótulo (ex.: TIPMOV → `P=Pedido de venda; V=Venda; C=Compra`).\nAceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).\n\nChame esta tool ANTES de escrever qualquer WHERE com literal: os códigos do\nSankhya não são adivinháveis pelo nome do campo e vários são parecidos entre\nsi. Em TIPMOV, `V` (Venda) e `P` (Pedido de venda) são ambos válidos — usar\num pelo outro devolve o documento errado, sem nenhum erro de SQL.\n\nExemplos:\n  describe_table(\"TGFCAB\")\n  describe_table(\"CabecalhoNota\")",
         "inputSchema": {
           "properties": {
@@ -285,6 +291,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Retorna as foreign keys de uma tabela: qual coluna local aponta\npara qual tabela/coluna de destino.\nAceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).\n\nExemplos:\n  get_foreign_keys(\"TGFITE\")\n  get_foreign_keys(\"ItemNota\")",
         "inputSchema": {
           "properties": {
@@ -315,6 +324,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Lista os índices de uma tabela e suas colunas.\nÚtil para otimizar queries e entender chaves de busca.\nAceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).\n\nExemplos:\n  get_indexes(\"TGFCAB\")\n  get_indexes(\"CabecalhoNota\")",
         "inputSchema": {
           "properties": {
@@ -345,6 +357,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Lista os módulos do Sankhya agrupando as tabelas pelo prefixo de\n3 caracteres do nome (TGFCAB, TGFITE e TGFPAR contam para TGF), com a\ncontagem de tabelas de cada módulo.\n\nRetorna uma visão geral dos módulos disponíveis no schema. Prefixo com uma\ntabela só fica de fora. Tabelas customizadas aparecem sob `AD_`.",
         "inputSchema": {
           "properties": {},
@@ -367,6 +382,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Executa uma query SELECT na base Sankhya local e retorna até\n`limit` linhas formatadas como tabela Markdown.\n\nATENÇÃO: Apenas SELECT é permitido. Queries de escrita serão bloqueadas.\n\nAntes de filtrar por um valor literal (`WHERE TIPMOV = 'P'`), chame\n`describe_table` na tabela e copie o valor da coluna `opcoes`. Os códigos do\nSankhya são de uma letra e parecidos entre si — `V` é Venda e `P` é Pedido\nde venda —, e usar um pelo outro devolve o documento errado sem erro de SQL.\n\nA sintaxe é a do banco configurado — no Oracle use `ROWNUM <= 5`,\nno SQL Server use `SELECT TOP (5) ...`.",
         "inputSchema": {
           "properties": {
@@ -402,6 +420,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Busca em quais tabelas existe um campo com o nome informado.\nPermite filtrar por prefixo de tabela.\n\nTraz a descrição de cada campo em português vinda do dicionário Sankhya.\nA mesma coluna pode significar coisas diferentes em tabelas diferentes, e é\na descrição que separa uma da outra.\n\nExemplos:\n  search_columns(\"CODPARC\")           → onde CODPARC aparece\n  search_columns(\"CODPARC\", \"TGF\")    → apenas em tabelas TGF*\n  search_columns(\"DTFATUR\")           → onde está o campo de faturamento",
         "inputSchema": {
           "properties": {
@@ -437,6 +458,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Busca instâncias (EntityNames) do Sankhya por nome ou descrição.\nÚtil para descobrir qual EntityName ou tabela corresponde a um conceito de negócio.\n\nParâmetros:\n  keyword   — termo de busca em português ou nome de entidade\n  only_root — se True, retorna apenas instâncias raiz (exclui sub-instâncias com filtro)\n\nExemplos:\n  search_entities(\"nota fiscal\")   → entidades de NF\n  search_entities(\"pedido\")        → entidades de pedido de venda\n  search_entities(\"parceiro\")      → entidades de parceiro/cliente/fornecedor\n  search_entities(\"CabecalhoNota\") → busca direta por EntityName",
         "inputSchema": {
           "properties": {
@@ -472,6 +496,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Busca tabelas cujo nome contenha o termo informado.\nÚtil para descobrir tabelas relacionadas a um módulo.\n\nTraz a descrição da tabela em português vinda do dicionário Sankhya, para\nvocê saber qual das candidatas é a certa sem abrir uma por uma.\n\nExemplos:\n  search_tables(\"TGF\")   → todas as tabelas de movimento\n  search_tables(\"PARC\")  → tabelas relacionadas a parceiros\n  search_tables(\"FIN\")   → tabelas financeiras",
         "inputSchema": {
           "properties": {
@@ -502,6 +529,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Retorna uma amostra de dados reais de uma tabela.\nÚtil para entender o conteúdo e o formato dos campos.\nAceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).\n\nColunas enumeradas vêm com o rótulo do dicionário ao lado do código\n(`L (Liberada)`), então a amostra também serve para conferir quais valores\na tabela realmente usa — inclusive valor gravado fora do domínio declarado,\nque aparece sem rótulo.\n\nTabela Sankhya é larga (TGFTOP passa de 600 colunas). Sem `columns`, a\namostra traz apenas as primeiras colunas na ordem da tabela e avisa quantas\nficaram de fora — informe `columns` para ver exatamente as que interessam.\n\nParâmetros:\n  columns — colunas a exibir, separadas por vírgula. Case-insensitive e\n            tolerante a espaços. Nome inexistente é reportado na saída.\n\nFluxo natural: chame `describe_table` primeiro para conhecer os nomes das\ncolunas, depois `table_sample` com as colunas de interesse.\n\nExemplos:\n  table_sample(\"TGFCAB\", limit=5)\n  table_sample(\"TGFCAB\", limit=5, columns=\"NUNOTA,CODPARC,VLRNOTA\")\n  table_sample(\"TipoOperacao\", limit=5, columns=\"CODTIPOPER, DESCROPER\")",
         "inputSchema": {
           "properties": {
@@ -542,6 +572,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Valida a sintaxe de uma query sem executá-la de fato.\nCheca erros de sintaxe, tabelas inexistentes e colunas inválidas pelo\nplano estimado do banco (EXPLAIN PLAN no Oracle, SHOWPLAN_ALL no SQL Server).\n\nExemplo: validate_query(\"SELECT NUNOTA, CODPARC FROM TGFCAB WHERE CODTIPOPER = 1\")",
         "inputSchema": {
           "properties": {
@@ -831,6 +864,9 @@
     "protocolVersion": "2025-11-25",
     "tools": [
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Informa se há versão mais nova deste servidor MCP publicada e o que mudou.\n\nCompara a versão instalada com a maior tag do repositório de origem e,\nhavendo diferença, lista as entradas do CHANGELOG no intervalo e o comando\nde atualização. Ignora o cache: a resposta é sempre a consulta de agora.\nAvisa também quando as dependências instaladas estão atrás do projeto.",
         "inputSchema": {
           "properties": {},
@@ -853,6 +889,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Retorna todas as colunas de uma tabela Sankhya com a descrição em português\ndo dicionário e, para os campos enumerados, TODOS os valores aceitos com o\nrespectivo rótulo (ex.: TIPMOV → `P=Pedido de venda; V=Venda; C=Compra`).\nAceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).\n\nChame esta tool ANTES de escrever qualquer WHERE com literal: os códigos do\nSankhya não são adivinháveis pelo nome do campo e vários são parecidos entre\nsi. Em TIPMOV, `V` (Venda) e `P` (Pedido de venda) são ambos válidos — usar\num pelo outro devolve o documento errado, sem nenhum erro de SQL.\n\nExemplos:\n  describe_table(\"TGFCAB\")\n  describe_table(\"CabecalhoNota\")",
         "inputSchema": {
           "properties": {
@@ -883,6 +922,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Retorna as foreign keys de uma tabela: qual coluna local aponta\npara qual tabela/coluna de destino.\nAceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).\n\nExemplos:\n  get_foreign_keys(\"TGFITE\")\n  get_foreign_keys(\"ItemNota\")",
         "inputSchema": {
           "properties": {
@@ -913,6 +955,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Lista os índices de uma tabela e suas colunas.\nÚtil para otimizar queries e entender chaves de busca.\nAceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).\n\nExemplos:\n  get_indexes(\"TGFCAB\")\n  get_indexes(\"CabecalhoNota\")",
         "inputSchema": {
           "properties": {
@@ -943,6 +988,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Lista os módulos do Sankhya agrupando as tabelas pelo prefixo de\n3 caracteres do nome (TGFCAB, TGFITE e TGFPAR contam para TGF), com a\ncontagem de tabelas de cada módulo.\n\nRetorna uma visão geral dos módulos disponíveis no schema. Prefixo com uma\ntabela só fica de fora. Tabelas customizadas aparecem sob `AD_`.",
         "inputSchema": {
           "properties": {},
@@ -965,6 +1013,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Executa uma query SELECT na base Sankhya local e retorna até\n`limit` linhas formatadas como tabela Markdown.\n\nATENÇÃO: Apenas SELECT é permitido. Queries de escrita serão bloqueadas.\n\nAntes de filtrar por um valor literal (`WHERE TIPMOV = 'P'`), chame\n`describe_table` na tabela e copie o valor da coluna `opcoes`. Os códigos do\nSankhya são de uma letra e parecidos entre si — `V` é Venda e `P` é Pedido\nde venda —, e usar um pelo outro devolve o documento errado sem erro de SQL.\n\nA sintaxe é a do banco configurado — no Oracle use `ROWNUM <= 5`,\nno SQL Server use `SELECT TOP (5) ...`.",
         "inputSchema": {
           "properties": {
@@ -1000,6 +1051,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Busca em quais tabelas existe um campo com o nome informado.\nPermite filtrar por prefixo de tabela.\n\nTraz a descrição de cada campo em português vinda do dicionário Sankhya.\nA mesma coluna pode significar coisas diferentes em tabelas diferentes, e é\na descrição que separa uma da outra.\n\nExemplos:\n  search_columns(\"CODPARC\")           → onde CODPARC aparece\n  search_columns(\"CODPARC\", \"TGF\")    → apenas em tabelas TGF*\n  search_columns(\"DTFATUR\")           → onde está o campo de faturamento",
         "inputSchema": {
           "properties": {
@@ -1035,6 +1089,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Busca instâncias (EntityNames) do Sankhya por nome ou descrição.\nÚtil para descobrir qual EntityName ou tabela corresponde a um conceito de negócio.\n\nParâmetros:\n  keyword   — termo de busca em português ou nome de entidade\n  only_root — se True, retorna apenas instâncias raiz (exclui sub-instâncias com filtro)\n\nExemplos:\n  search_entities(\"nota fiscal\")   → entidades de NF\n  search_entities(\"pedido\")        → entidades de pedido de venda\n  search_entities(\"parceiro\")      → entidades de parceiro/cliente/fornecedor\n  search_entities(\"CabecalhoNota\") → busca direta por EntityName",
         "inputSchema": {
           "properties": {
@@ -1070,6 +1127,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Busca tabelas cujo nome contenha o termo informado.\nÚtil para descobrir tabelas relacionadas a um módulo.\n\nTraz a descrição da tabela em português vinda do dicionário Sankhya, para\nvocê saber qual das candidatas é a certa sem abrir uma por uma.\n\nExemplos:\n  search_tables(\"TGF\")   → todas as tabelas de movimento\n  search_tables(\"PARC\")  → tabelas relacionadas a parceiros\n  search_tables(\"FIN\")   → tabelas financeiras",
         "inputSchema": {
           "properties": {
@@ -1100,6 +1160,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Retorna uma amostra de dados reais de uma tabela.\nÚtil para entender o conteúdo e o formato dos campos.\nAceita tanto o nome da tabela no banco quanto o EntityName (NOMEINSTANCIA).\n\nColunas enumeradas vêm com o rótulo do dicionário ao lado do código\n(`L (Liberada)`), então a amostra também serve para conferir quais valores\na tabela realmente usa — inclusive valor gravado fora do domínio declarado,\nque aparece sem rótulo.\n\nTabela Sankhya é larga (TGFTOP passa de 600 colunas). Sem `columns`, a\namostra traz apenas as primeiras colunas na ordem da tabela e avisa quantas\nficaram de fora — informe `columns` para ver exatamente as que interessam.\n\nParâmetros:\n  columns — colunas a exibir, separadas por vírgula. Case-insensitive e\n            tolerante a espaços. Nome inexistente é reportado na saída.\n\nFluxo natural: chame `describe_table` primeiro para conhecer os nomes das\ncolunas, depois `table_sample` com as colunas de interesse.\n\nExemplos:\n  table_sample(\"TGFCAB\", limit=5)\n  table_sample(\"TGFCAB\", limit=5, columns=\"NUNOTA,CODPARC,VLRNOTA\")\n  table_sample(\"TipoOperacao\", limit=5, columns=\"CODTIPOPER, DESCROPER\")",
         "inputSchema": {
           "properties": {
@@ -1140,6 +1203,9 @@
         }
       },
       {
+        "annotations": {
+          "readOnlyHint": true
+        },
         "description": "Valida a sintaxe de uma query sem executá-la de fato.\nCheca erros de sintaxe, tabelas inexistentes e colunas inválidas pelo\nplano estimado do banco (EXPLAIN PLAN no Oracle, SHOWPLAN_ALL no SQL Server).\n\nExemplo: validate_query(\"SELECT NUNOTA, CODPARC FROM TGFCAB WHERE CODTIPOPER = 1\")",
         "inputSchema": {
           "properties": {

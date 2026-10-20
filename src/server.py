@@ -26,6 +26,8 @@ except ImportError:
 
     SDK_DESATUALIZADO = True
 
+from mcp.types import ToolAnnotations
+
 from dialects import (
     BEGIN_READ_ONLY,
     DB_CONFIG,
@@ -559,6 +561,14 @@ mcp = MCPServer(
 )
 
 
+# Toda tool deste servidor só lê: o run_query recusa o que não for SELECT e, no
+# Oracle, a transação READ ONLY faz o próprio banco recusar DML. Avisado, o
+# cliente pode tratá-las como seguras. O nome vai em camelCase de propósito: o
+# SDK 1.x aceita `read_only_hint` em silêncio como campo desconhecido e o
+# publica com o nome errado; `readOnlyHint` sai certo nos dois SDKs.
+SOMENTE_LEITURA = ToolAnnotations(readOnlyHint=True)
+
+
 def _preservar_mensagem_de_erro(fn):
     """
     Faz a mensagem da exceção chegar ao cliente MCP em qualquer versão do SDK.
@@ -582,7 +592,7 @@ def _preservar_mensagem_de_erro(fn):
 # Tools
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(annotations=SOMENTE_LEITURA)
 @_preservar_mensagem_de_erro
 def describe_table(table_name: str) -> str:
     """
@@ -656,7 +666,7 @@ def describe_table(table_name: str) -> str:
     return result
 
 
-@mcp.tool()
+@mcp.tool(annotations=SOMENTE_LEITURA)
 @_preservar_mensagem_de_erro
 def search_tables(keyword: str) -> str:
     """
@@ -680,7 +690,7 @@ def search_tables(keyword: str) -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=SOMENTE_LEITURA)
 @_preservar_mensagem_de_erro
 def search_columns(column_keyword: str, table_keyword: str = "") -> str:
     """
@@ -711,7 +721,7 @@ def search_columns(column_keyword: str, table_keyword: str = "") -> str:
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=SOMENTE_LEITURA)
 @_preservar_mensagem_de_erro
 def get_foreign_keys(table_name: str) -> str:
     """
@@ -748,7 +758,7 @@ def get_foreign_keys(table_name: str) -> str:
     return "\n\n".join(partes)
 
 
-@mcp.tool()
+@mcp.tool(annotations=SOMENTE_LEITURA)
 @_preservar_mensagem_de_erro
 def get_indexes(table_name: str) -> str:
     """
@@ -769,7 +779,7 @@ def get_indexes(table_name: str) -> str:
     return f"## Índices — {resolved}\n\n{rows_to_markdown(rows)}"
 
 
-@mcp.tool()
+@mcp.tool(annotations=SOMENTE_LEITURA)
 @_preservar_mensagem_de_erro
 def run_query(sql: str, limit: int = 50) -> str:
     """
@@ -801,7 +811,7 @@ def run_query(sql: str, limit: int = 50) -> str:
         return f"❌ Erro ao executar query:\n```\n{str(e)}\n```"
 
 
-@mcp.tool()
+@mcp.tool(annotations=SOMENTE_LEITURA)
 @_preservar_mensagem_de_erro
 def validate_query(sql: str) -> str:
     """
@@ -833,7 +843,7 @@ def validate_query(sql: str) -> str:
         return f"❌ Query inválida:\n```\n{str(e)}\n```"
 
 
-@mcp.tool()
+@mcp.tool(annotations=SOMENTE_LEITURA)
 @_preservar_mensagem_de_erro
 def table_sample(table_name: str, limit: int = 10, columns: str = "") -> str:
     """
@@ -910,7 +920,7 @@ def table_sample(table_name: str, limit: int = 10, columns: str = "") -> str:
         return f"❌ Erro:\n```\n{str(e)}\n```"
 
 
-@mcp.tool()
+@mcp.tool(annotations=SOMENTE_LEITURA)
 @_preservar_mensagem_de_erro
 def search_entities(keyword: str, only_root: bool = False) -> str:
     """
@@ -952,7 +962,7 @@ def search_entities(keyword: str, only_root: bool = False) -> str:
     return f"## Entidades — '{keyword}'\n\n{rows_to_markdown(rows)}{note}"
 
 
-@mcp.tool()
+@mcp.tool(annotations=SOMENTE_LEITURA)
 @_preservar_mensagem_de_erro
 def list_modules() -> str:
     """
@@ -968,7 +978,7 @@ def list_modules() -> str:
     return f"## Módulos do Schema Sankhya\n\n{rows_to_markdown(modulos)}"
 
 
-@mcp.tool()
+@mcp.tool(annotations=SOMENTE_LEITURA)
 @_preservar_mensagem_de_erro
 def check_updates() -> str:
     """
