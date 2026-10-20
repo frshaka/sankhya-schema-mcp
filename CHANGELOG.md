@@ -10,6 +10,38 @@ A tool `check_updates` do próprio servidor compara a versão instalada com a
 de cada release no GitHub** são geradas a partir da seção correspondente deste
 arquivo. Uma seção vazia reprova a publicação.
 
+## [2.0.0] - 2026-10-20
+
+> **Dependência nova: reinstale as dependências ao atualizar.** O jeito mais
+> simples é o script novo, que faz o `git pull` e a reinstalação de uma vez:
+> `pwsh -File update.ps1` no Windows ou `./update.sh` no Linux, na pasta do
+> MCP. Depois reinicie o cliente MCP. Quem atualizar só com `git pull`
+> continua funcionando: o servidor segue com as dependências antigas e o
+> assistente avisa e oferece rodar o script.
+
+### Alterado
+
+- O servidor passa a usar o SDK MCP 2.x (`mcp>=2.3.0,<3.0.0`). Para quem usa,
+  nada muda: as tools, os parâmetros, as instruções e as mensagens de erro
+  continuam os mesmos.
+- A tool `check_updates` indica o script de atualização no lugar do `git pull`.
+
+### Adicionado
+
+- `update.ps1` e `update.sh`: atualizam o código e reinstalam as dependências,
+  inclusive o driver do SQL Server quando ele já está instalado. Podem rodar
+  com o cliente MCP aberto.
+- Aviso de dependências desatualizadas nas instruções do servidor e no
+  `check_updates`, com o comando que resolve.
+
+### Corrigido
+
+- Com o SDK 2.x, a mensagem de erro das tools deixaria de chegar ao cliente
+  (senha errada, permissão negada, banco fora do ar viravam só
+  `Error executing tool X`). Ela continua chegando completa.
+- Chamadas simultâneas logo após o início do servidor podiam criar mais de um
+  pool de conexões Oracle, deixando conexões abertas sem uso no banco.
+
 ## [1.4.1] - 2026-09-10
 
 ### Corrigido
