@@ -1101,13 +1101,14 @@ def test_toda_tool_preserva_mensagem_de_erro():
     assert tools > 0 and decoradas == tools, f"{decoradas} de {tools} tools com o decorator"
 
 
-def test_toda_tool_declara_somente_leitura():
-    # Tool nova sem a anotação continua funcionando; só deixa de avisar o
-    # cliente de que é segura — nada falharia sem este teste.
+def test_toda_tool_declara_somente_leitura_e_responde_texto_puro():
+    # Tool nova sem estes parâmetros continua funcionando; só deixa de avisar
+    # o cliente de que é segura e volta a mandar o texto embrulhado em JSON —
+    # nada falharia sem este teste.
     fonte = (Path(__file__).parent / "src" / "server.py").read_text(encoding="utf-8")
     tools = len(re.findall(r"^@mcp\.tool\(", fonte, flags=re.M))
-    anotadas = fonte.count("@mcp.tool(annotations=SOMENTE_LEITURA)\n")
-    assert tools > 0 and anotadas == tools, f"{anotadas} de {tools} tools com SOMENTE_LEITURA"
+    padrao = fonte.count("@mcp.tool(annotations=SOMENTE_LEITURA, structured_output=False)\n")
+    assert tools > 0 and padrao == tools, f"{padrao} de {tools} tools no padrão"
     assert server.SOMENTE_LEITURA.model_dump(by_alias=True, exclude_none=True) == {"readOnlyHint": True}
 
 
