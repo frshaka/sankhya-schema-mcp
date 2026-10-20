@@ -10,6 +10,23 @@ A tool `check_updates` do próprio servidor compara a versão instalada com a
 de cada release no GitHub** são geradas a partir da seção correspondente deste
 arquivo. Uma seção vazia reprova a publicação.
 
+## [2.1.0] - 2026-10-20
+
+Atualização simples: sem dependência nova, basta o `update.ps1`/`update.sh`
+(ou só o `git pull`). Para quem usa, as tools, os parâmetros e o conteúdo das
+respostas continuam os mesmos.
+
+### Alterado
+
+- As tools respondem em texto puro. Antes, o resultado chegava ao modelo
+  também embrulhado em JSON (`{"result": "..."}`), com quebras de linha e
+  aspas escapadas — um pouco maior e mais difícil de ler.
+
+### Adicionado
+
+- Todas as tools se declaram somente leitura (`readOnlyHint`), informação que
+  o cliente MCP pode usar para tratá-las como seguras.
+
 ## [2.0.0] - 2026-10-20
 
 > **Dependência nova: reinstale as dependências ao atualizar.** O jeito mais
