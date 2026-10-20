@@ -7,6 +7,7 @@ Execute:
 """
 
 import importlib.util
+import inspect
 import json
 import os
 import queue
@@ -1277,6 +1278,11 @@ def _capturar_cenario(cenario):
         ]
     finally:
         cliente.fechar()
+    # A descrição vem da docstring, e o Python 3.13+ tira a indentação dela na
+    # compilação; o 3.10–3.12 não. Mesmo texto, espaços diferentes por versão
+    # do Python, não do SDK.
+    for tool in tools:
+        tool["description"] = inspect.cleandoc(tool.get("description") or "")
     return {
         "protocolVersion": inicio["protocolVersion"],
         "instructions": inicio.get("instructions"),
