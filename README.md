@@ -497,6 +497,93 @@ python tools/release_notes.py 1.2.1
 
 ## Ambiente de Desenvolvimento Local
 
+### Ambiente completo com Docker (Oracle + WildFly)
+
+Sobe o banco e o servidor de aplicação juntos, agrupados como `skdev` no Docker Desktop, sem instalar WildFly nem Java na máquina:
+
+| Serviço | Imagem | O que traz |
+|---|---|---|
+| `skdev-oracle` | `frshaka/skdev-oracle:1.1.1` | Oracle XE 11g com o dump `SKCONTAINER` importado na primeira subida |
+| `skdev-wildfly` | `frshaka/skdev-wildfly:23.0.1` | WildFly 23 Sankhya zerado (só o WPM), Java 8, rodando como `mgeweb` |
+
+O Sankhya OM não vem instalado: cada um instala pelo WPM, como numa instalação comum.
+
+> ⚠️ O container usa o nome `skdev-oracle` e a porta `1521`, os mesmos do container avulso descrito na seção seguinte. Se ele existir, remova-o antes (`docker rm -f skdev-oracle`; o volume dele é preservado).
+
+#### 1. Criar a rede e os volumes
+
+A rede deixa o WildFly encontrar o banco pelo nome `oracle`. Os volumes guardam o banco e o Sankhya instalado:
+
+```bash
+docker network create skdev
+docker volume create skdev-oracle-data
+docker volume create skdev-wildfly-data
+```
+
+#### 2. Iniciar os containers
+
+Troque `troque_esta_senha` pela senha que quiser para os usuários `SYS`/`SYSTEM` do Oracle:
+
+```bash
+docker run -d --name skdev-oracle --network skdev --network-alias oracle --label com.docker.compose.project=skdev --restart unless-stopped --shm-size=1g -e ORACLE_PWD=troque_esta_senha -p 1521:1521 -v skdev-oracle-data:/u01/app/oracle/oradata frshaka/skdev-oracle:1.1.1
+```
+
+```bash
+docker run -d --name skdev-wildfly --network skdev --label com.docker.compose.project=skdev --restart unless-stopped --memory=5g -p 8080:8080 -p 9990:9990 -v skdev-wildfly-data:/opt/sk frshaka/skdev-wildfly:23.0.1
+```
+
+Acompanhe a subida do banco:
+
+```bash
+docker logs -f skdev-oracle
+```
+
+A primeira subida leva de 15 a 20 minutos: o Oracle cria o banco e importa o dump. O banco está pronto quando o log mostra `DATABASE IS READY TO USE!`. O WildFly sobe em paralelo e já responde antes disso.
+
+#### 3. Instalar o Sankhya OM pelo WPM
+
+1. Acesse `http://localhost:8080/wpm/`. No primeiro acesso a senha é `admin`, e o WPM pede para trocá-la.
+2. Na configuração do banco, use:
+
+   | Host | Porta | SID | Usuário | Senha |
+   |---|---|---|---|---|
+   | `oracle` | `1521` | `XE` | `SKCONTAINER` | `tecsis` |
+
+   O host é `oracle`, o nome do banco na rede `skdev`, e não `localhost`: dentro do container, `localhost` é o próprio WildFly.
+3. Baixe e instale a versão mais recente do Sankhya OM. A instalação leva por volta de 10 minutos; durante o deploy é normal aparecerem módulos com falha que logo em seguida são reimplantados com sucesso.
+4. Acesse `http://localhost:8080/mge/`. Na primeira inicialização o usuário `SUP` não tem senha: entre com `SUP`, deixe a senha em branco e o sistema pede para definir uma.
+
+#### Conectar o MCP a este banco
+
+Do lado de fora dos containers, o banco responde em `localhost`:
+
+```ini
+SANKHYA_DB_TYPE=oracle
+SANKHYA_DB_HOST=localhost
+SANKHYA_DB_PORT=1521
+SANKHYA_DB_SERVICE=XE
+SANKHYA_DB_USER=SKCONTAINER
+SANKHYA_DB_PASSWORD=tecsis
+```
+
+#### Parar, reiniciar e recomeçar
+
+```bash
+docker stop skdev-wildfly skdev-oracle     # parar
+docker start skdev-oracle skdev-wildfly    # reiniciar
+```
+
+Para começar do zero, apagando o banco e o Sankhya instalado:
+
+```bash
+docker rm -f skdev-wildfly skdev-oracle
+docker volume rm skdev-oracle-data skdev-wildfly-data
+```
+
+Depois, repita os passos 1 e 2 (a rede `skdev` pode ser reaproveitada; o `docker network create` só avisa que ela já existe).
+
+---
+
 ### Banco de Dados com Docker
 
 A Sankhya distribui as duas imagens em
