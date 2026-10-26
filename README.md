@@ -503,7 +503,7 @@ Sobe o banco e o servidor de aplicação juntos, agrupados como `skdev` no Docke
 
 | Serviço | Imagem | O que traz |
 |---|---|---|
-| `skdev-oracle` | `frshaka/skdev-oracle:1.1.1` | Oracle XE 11g com o dump `SKCONTAINER` importado na primeira subida |
+| `skdev-oracle` | `frshaka/skdev-oracle:1.1.2` | Oracle XE 11g com o dump `SKCONTAINER` importado na primeira subida |
 | `skdev-wildfly` | `frshaka/skdev-wildfly:23.0.1` | WildFly 23 Sankhya zerado (só o WPM), Java 8, rodando como `mgeweb` |
 
 O Sankhya OM não vem instalado: cada um instala pelo WPM, como numa instalação comum.
@@ -525,8 +525,10 @@ docker volume create skdev-wildfly-data
 Troque `troque_esta_senha` pela senha que quiser para os usuários `SYS`/`SYSTEM` do Oracle:
 
 ```bash
-docker run -d --name skdev-oracle --network skdev --network-alias oracle --label com.docker.compose.project=skdev --restart unless-stopped --shm-size=1g -e ORACLE_PWD=troque_esta_senha -p 1521:1521 -v skdev-oracle-data:/u01/app/oracle/oradata frshaka/skdev-oracle:1.1.1
+docker run -d --name skdev-oracle --network skdev --network-alias oracle --label com.docker.compose.project=skdev --restart unless-stopped --shm-size=1g -e ORACLE_PWD=troque_esta_senha -e TZ=America/Sao_Paulo -p 1521:1521 -v skdev-oracle-data:/u01/app/oracle/oradata frshaka/skdev-oracle:1.1.2
 ```
+
+> O `TZ` deixa o `SYSDATE` no horário de Brasília (sem ele o banco fica em UTC, 3h adiantado). Quem já tem o container criado sem ele pode recriá-lo com `docker rm -f skdev-oracle` e o comando acima: os dados ficam no volume.
 
 ```bash
 docker run -d --name skdev-wildfly --network skdev --label com.docker.compose.project=skdev --restart unless-stopped --memory=5g -p 8080:8080 -p 9990:9990 -v skdev-wildfly-data:/opt/sk frshaka/skdev-wildfly:23.0.1
@@ -603,7 +605,7 @@ docker volume create skdev-oracle-volume
 ##### Iniciando o container
 
 ```bash
-docker run -d --name skdev-oracle --shm-size=1g -p 1521:1521 -p 5500:5500 -v skdev-oracle-volume:/u01/app/oracle/oradata sankhyaimages/skdev-oracle:1.1.0
+docker run -d --name skdev-oracle --shm-size=1g -e TZ=America/Sao_Paulo -p 1521:1521 -p 5500:5500 -v skdev-oracle-volume:/u01/app/oracle/oradata sankhyaimages/skdev-oracle:1.1.0
 ```
 
 > ⚠️ A primeira inicialização pode levar de 20 a 30 minutos. Acompanhe o progresso com: `docker logs -f skdev-oracle`.
