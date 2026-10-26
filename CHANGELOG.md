@@ -10,6 +10,18 @@ A tool `check_updates` do próprio servidor compara a versão instalada com a
 de cada release no GitHub** são geradas a partir da seção correspondente deste
 arquivo. Uma seção vazia reprova a publicação.
 
+## [2.1.1] - 2026-10-26
+
+Só documentação: nada muda no servidor, basta o `git pull`.
+
+### Corrigido
+
+- Os `docker run` do Oracle passam `-e TZ=America/Sao_Paulo`. Sem isso o banco
+  sobe em UTC e o `SYSDATE` fica 3 horas adiantado. O ambiente completo
+  (Oracle + WildFly) passa a usar a imagem `frshaka/skdev-oracle:1.1.2`, que já
+  vem com o fuso. Quem já criou o container pode recriá-lo sem perder os dados,
+  que ficam no volume.
+
 ## [2.1.0] - 2026-10-20
 
 Atualização simples: sem dependência nova, basta o `update.ps1`/`update.sh`
