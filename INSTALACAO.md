@@ -283,7 +283,7 @@ docker volume create skdev-oracle-volume
 #### Iniciando o container
 
 ```bash
-docker run -d --name skdev-oracle --shm-size=1g -p 1521:1521 -p 5500:5500 -v skdev-oracle-volume:/opt/oracle/oradata sankhyaimages/skdev-oracle:1.1.0
+docker run -d --name skdev-oracle --shm-size=1g -p 1521:1521 -p 5500:5500 -v skdev-oracle-volume:/u01/app/oracle/oradata sankhyaimages/skdev-oracle:1.1.0
 ```
 
 > ⚠️ A primeira inicialização pode levar de **20 a 30 minutos**. Acompanhe o progresso com:
