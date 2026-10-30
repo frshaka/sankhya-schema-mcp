@@ -10,6 +10,26 @@ A tool `check_updates` do próprio servidor compara a versão instalada com a
 de cada release no GitHub** são geradas a partir da seção correspondente deste
 arquivo. Uma seção vazia reprova a publicação.
 
+## [2.2.0] - 2026-10-30
+
+Atualização simples: sem dependência nova, basta o `update.ps1`/`update.sh`
+(ou só o `git pull`). Sem configurar nada, as consultas continuam sem limite
+de tempo, como antes.
+
+### Adicionado
+
+- O `run_query` avisa progresso ao cliente a cada 60 segundos enquanto a
+  consulta roda. O Claude Code abortava a tool depois de 30 minutos sem
+  resposta (`sent no response or progress for 1800s`), e agora a consulta
+  longa chega até o fim.
+- `SANKHYA_DB_QUERY_TIMEOUT`: teto, em segundos, de cada consulta no banco.
+  Passado o limite, a consulta é interrompida e a resposta diz que estourou o
+  limite configurado. Ausente ou `0` = sem limite. Ver "Consultas longas" no
+  README.
+- As conexões do MCP aparecem no banco como `sankhya-schema`
+  (`V$SESSION.MODULE` no Oracle, `program_name` no SQL Server), em vez de
+  `python.exe`. Assim o DBA acha e encerra uma consulta presa.
+
 ## [2.1.1] - 2026-10-26
 
 Só documentação: nada muda no servidor, basta o `git pull`.
