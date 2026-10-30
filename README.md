@@ -339,6 +339,42 @@ Na prática isso significa que, no SQL Server:
 
 ---
 
+## Consultas longas
+
+### O cliente não derruba a consulta por silêncio
+
+O Claude Code aborta a tool que passa 30 minutos sem mandar resposta nem progresso (`CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT`). Para evitar isso, o `run_query` envia uma notificação de progresso a cada 60 segundos enquanto a consulta roda. O cliente mostra o tempo decorrido e o contador dele recomeça. Cliente que não pede progresso não recebe nada.
+
+O teto total do Claude Code por chamada (~27 h por padrão) não é estendido pelo progresso. Para mudar os dois limites só neste servidor, use o `timeout` (ms) na configuração do MCP:
+
+```json
+"sankhya-schema": {
+  "command": "...",
+  "timeout": 14400000
+}
+```
+
+### Teto da consulta no banco (`SANKHYA_DB_QUERY_TIMEOUT`)
+
+```ini
+# Segundos. 0 ou ausente = sem limite (padrão).
+SANKHYA_DB_QUERY_TIMEOUT=3600
+```
+
+Passado o limite, a consulta é interrompida e o `run_query` responde que estourou o `SANKHYA_DB_QUERY_TIMEOUT`, junto com o erro do driver. No Oracle o limite vale por ida e volta ao banco (`call_timeout`), não pela consulta inteira. Na prática, a parte pesada é a execução, e a busca das linhas já é limitada pelo `limit`.
+
+> **Oracle atrás de Docker Desktop, NAT ou firewall:** o Oracle interrompe a execução no servidor com um *break* enviado como dado urgente de TCP (*out-of-band*). Alguns desses ambientes descartam esse dado. O cliente desiste no prazo, mas a consulta continua rodando no banco até terminar. Medido no `skdev-oracle` em Docker Desktop no Windows. Nesses casos, encerre a sessão pelo banco (ver abaixo).
+
+### Identificando as sessões do MCP
+
+As conexões se identificam no banco como `sankhya-schema`, em `V$SESSION.MODULE` (Oracle) e em `program_name` (SQL Server). Sem isso apareceriam só como `python.exe`. Para achar uma consulta presa:
+
+```sql
+SELECT SID, SERIAL#, STATUS, LAST_CALL_ET, SQL_ID FROM V$SESSION WHERE MODULE = 'sankhya-schema';
+```
+
+---
+
 ## Equivalências de catálogo entre os bancos
 
 As tools respondem a mesma coisa nos dois bancos, lendo catálogos diferentes:

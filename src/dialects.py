@@ -414,7 +414,14 @@ DB_CONFIG = {
     "password":     os.getenv("SANKHYA_DB_PASSWORD",     "developer"),
     # Schema onde as tabelas do Sankhya moram, quando não é o do usuário conectado.
     "schema":       os.getenv("SANKHYA_DB_SCHEMA",       None),
+    # Teto, em segundos, de cada consulta no banco. 0 mantém o comportamento
+    # anterior: sem limite.
+    "query_timeout": max(0, int(os.getenv("SANKHYA_DB_QUERY_TIMEOUT", "0"))),
 }
+
+# Como o servidor aparece em V$SESSION.MODULE (Oracle) e em program_name (SQL
+# Server): sem isso a sessão surge só como `python.exe` e o DBA não a distingue.
+NOME_SESSAO = "sankhya-schema"
 
 _IDENTIFIER_RE = re.compile(r"^[A-Z][A-Z0-9_$#]*$")
 
@@ -568,6 +575,8 @@ def connect():
             user=DB_CONFIG["user"],
             password=DB_CONFIG["password"],
             database=DB_CONFIG["database"],
+            timeout=DB_CONFIG["query_timeout"],
+            appname=NOME_SESSAO,
         )
         try:
             yield conn
@@ -575,6 +584,10 @@ def connect():
             conn.close()
     else:
         with _oracle_pool().acquire() as conn:
+            # Reaplicado a cada acquire: a conexão do pool pode vir de outra chamada.
+            conn.call_timeout = DB_CONFIG["query_timeout"] * 1000
+            conn.module = NOME_SESSAO
+            conn.action = "run_query"
             yield conn
 
 

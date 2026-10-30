@@ -354,6 +354,7 @@ As credenciais ficam no arquivo `.env` na raiz do projeto. Este arquivo **não �
 | `SANKHYA_DB_SERVICE_NAME` | Service name do banco. Quando informado, tem precedência sobre o SID | _(vazio)_ |
 | `SANKHYA_DB_USER` | Usuário do banco (schema Sankhya) | `SANKHYA` |
 | `SANKHYA_DB_PASSWORD` | Senha do usuário | `developer` |
+| `SANKHYA_DB_QUERY_TIMEOUT` | Teto, em segundos, de cada consulta no banco. `0` = sem limite. Ver [Consultas longas](README.md#consultas-longas) | `0` |
 
 ### Exemplos por ambiente
 

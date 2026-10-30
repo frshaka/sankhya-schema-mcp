@@ -8,19 +8,23 @@ de um banco para o outro — queries de catálogo, conexão, transação de leit
 plano de execução — vive em `dialects.py`.
 """
 
+import asyncio
 import functools
+import inspect
 import os
 import re
+import time
 from typing import Optional
 
 try:
-    from mcp.server.mcpserver import MCPServer
+    from mcp.server.mcpserver import Context, MCPServer
     from mcp.server.mcpserver.exceptions import ToolError
 
     SDK_DESATUALIZADO = False
 except ImportError:
     # Instalação que fez `git pull` sem reinstalar as dependências. Segue no SDK
     # 1.x, onde as respostas são idênticas, e avisa para rodar o update.
+    from mcp.server.fastmcp import Context
     from mcp.server.fastmcp import FastMCP as MCPServer
     from mcp.server.fastmcp.exceptions import ToolError
 
@@ -56,6 +60,9 @@ DEFAULT_ROW_LIMIT = 200
 # Tabela Sankhya e larga (TGFTOP passa de 600 colunas): um SELECT * inteiro
 # entope a janela de contexto de quem chamou sem ensinar nada a mais.
 SAMPLE_COLUMN_LIMIT = 25
+# Folga ampla para o idle timeout de 30 min do Claude Code e baixa o bastante
+# para não encher o cliente de notificações.
+INTERVALO_HEARTBEAT_S = 60
 
 
 def fetch_rows(
@@ -585,6 +592,17 @@ def _preservar_mensagem_de_erro(fn):
     errada ou o ORA-00942 da permissão. Convertida aqui, a resposta é a mesma
     nas duas versões. `functools.wraps` preserva a assinatura que gera o schema.
     """
+    # Tool async precisa de wrapper async: um wrapper síncrono devolveria a
+    # corrotina sem executá-la, e o SDK a rodaria como função comum.
+    if inspect.iscoroutinefunction(fn):
+        @functools.wraps(fn)
+        async def _envolvida_async(*args, **kwargs):
+            try:
+                return await fn(*args, **kwargs)
+            except Exception as exc:
+                raise ToolError(str(exc)) from exc
+        return _envolvida_async
+
     @functools.wraps(fn)
     def _envolvida(*args, **kwargs):
         try:
@@ -592,6 +610,28 @@ def _preservar_mensagem_de_erro(fn):
         except Exception as exc:
             raise ToolError(str(exc)) from exc
     return _envolvida
+
+
+async def _executar_com_heartbeat(funcao, ctx: Optional[Context]):
+    """
+    Roda `funcao` numa thread e avisa progresso ao cliente a cada
+    `INTERVALO_HEARTBEAT_S` enquanto ela não termina.
+
+    O Claude Code aborta a tool que passa 30 min sem resposta nem progresso
+    (CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT); consulta pesada no banco fica esse tempo
+    calada. O valor do progresso são os segundos decorridos, porque a spec exige
+    valor crescente e o total é desconhecido. Sem `progressToken` na chamada o
+    SDK descarta o aviso, então clientes que não pedem progresso não mudam.
+    """
+    tarefa = asyncio.ensure_future(asyncio.to_thread(funcao))
+    inicio = time.monotonic()
+    while True:
+        concluidas, _ = await asyncio.wait({tarefa}, timeout=INTERVALO_HEARTBEAT_S)
+        if concluidas:
+            return tarefa.result()
+        if ctx is not None:
+            decorrido = time.monotonic() - inicio
+            await ctx.report_progress(decorrido, message=f"Consulta em execução há {decorrido:.0f}s")
 
 
 # ---------------------------------------------------------------------------
@@ -787,7 +827,7 @@ def get_indexes(table_name: str) -> str:
 
 @mcp.tool(annotations=SOMENTE_LEITURA, structured_output=False)
 @_preservar_mensagem_de_erro
-def run_query(sql: str, limit: int = 50) -> str:
+async def run_query(sql: str, limit: int = 50, ctx: Optional[Context] = None) -> str:
     """
     Executa uma query SELECT na base Sankhya local e retorna até
     `limit` linhas formatadas como tabela Markdown.
@@ -807,13 +847,24 @@ def run_query(sql: str, limit: int = 50) -> str:
         return f"❌ {erro}"
 
     limit = max(1, limit)  # mesmo piso aplicado por fetch_rows, para o aviso não mentir
+    inicio = time.monotonic()
     try:
-        rows, truncated = fetch_rows(sql, limit=limit)
+        rows, truncated = await _executar_com_heartbeat(
+            functools.partial(fetch_rows, sql, limit=limit), ctx
+        )
         if not rows:
             return "_Query executada sem retorno de linhas._"
         suffix = f"\n\n_Exibindo {len(rows)} linha(s). Use `limit` para ajustar._"
         return rows_to_markdown(rows) + suffix + truncation_note(truncated, limit)
     except Exception as e:
+        # O erro do timeout muda por driver (DPI-1067, DPY-4024, timeout do
+        # FreeTDS); o tempo decorrido identifica o caso nos dois bancos.
+        limite = DB_CONFIG["query_timeout"]
+        if limite and time.monotonic() - inicio >= limite:
+            return (
+                f"❌ A consulta passou do limite de {limite}s definido em "
+                f"`SANKHYA_DB_QUERY_TIMEOUT` e foi interrompida:\n```\n{str(e)}\n```"
+            )
         return f"❌ Erro ao executar query:\n```\n{str(e)}\n```"
 
 

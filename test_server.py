@@ -6,6 +6,7 @@ Execute:
     Linux:   .venv/bin/python test_server.py
 """
 
+import asyncio
 import importlib.util
 import inspect
 import json
@@ -1097,7 +1098,9 @@ def test_toda_tool_preserva_mensagem_de_erro():
     # erro no 2.x — nenhum outro teste pegaria o esquecimento.
     fonte = (Path(__file__).parent / "src" / "server.py").read_text(encoding="utf-8")
     tools = len(re.findall(r"^@mcp\.tool\(", fonte, flags=re.M))
-    decoradas = len(re.findall(r"^@mcp\.tool\(.*\)\n@_preservar_mensagem_de_erro\ndef ", fonte, flags=re.M))
+    decoradas = len(re.findall(
+        r"^@mcp\.tool\(.*\)\n@_preservar_mensagem_de_erro\n(?:async )?def ", fonte, flags=re.M
+    ))
     assert tools > 0 and decoradas == tools, f"{decoradas} de {tools} tools com o decorator"
 
 
@@ -1124,6 +1127,154 @@ def test_erro_da_tool_vira_tool_error_com_a_mesma_mensagem():
         assert isinstance(exc.__cause__, Exception)
     else:
         raise AssertionError("deveria levantar ToolError")
+
+
+def test_erro_da_tool_async_vira_tool_error_com_a_mesma_mensagem():
+    # run_query é async: um wrapper síncrono devolveria a corrotina sem rodá-la.
+    @server._preservar_mensagem_de_erro
+    async def falha():
+        raise Exception("ORA-01017: invalid username/password; logon denied")
+
+    assert inspect.iscoroutinefunction(falha)
+    try:
+        asyncio.run(falha())
+    except server.ToolError as exc:
+        assert str(exc) == "ORA-01017: invalid username/password; logon denied"
+    else:
+        raise AssertionError("deveria levantar ToolError")
+
+
+@contextmanager
+def _query_timeout(segundos):
+    original = dialects.DB_CONFIG["query_timeout"]
+    dialects.DB_CONFIG["query_timeout"] = segundos
+    try:
+        yield
+    finally:
+        dialects.DB_CONFIG["query_timeout"] = original
+
+
+def test_connect_oracle_aplica_timeout_e_identifica_sessao():
+    class _ConexaoFalsa:
+        pass
+
+    class _PoolFalso:
+        @contextmanager
+        def acquire(self):
+            yield conexao
+
+    conexao = _ConexaoFalsa()
+    tipo_original, pool_original = dialects.DB_TYPE, dialects._pool
+    dialects.DB_TYPE, dialects._pool = "oracle", _PoolFalso()
+    try:
+        with _query_timeout(90), dialects.connect() as conn:
+            assert conn is conexao
+    finally:
+        dialects.DB_TYPE, dialects._pool = tipo_original, pool_original
+    assert conexao.call_timeout == 90_000
+    assert conexao.module == "sankhya-schema"
+    assert conexao.action == "run_query"
+
+
+def test_connect_sqlserver_repassa_timeout_e_appname():
+    recebido = {}
+
+    class _ConexaoFalsa:
+        def close(self):
+            recebido["fechada"] = True
+
+    class _PymssqlFalso:
+        @staticmethod
+        def connect(**kwargs):
+            recebido.update(kwargs)
+            return _ConexaoFalsa()
+
+    tipo_original, modulo_original = dialects.DB_TYPE, sys.modules.get("pymssql")
+    dialects.DB_TYPE, sys.modules["pymssql"] = "sqlserver", _PymssqlFalso
+    try:
+        with _query_timeout(90), dialects.connect():
+            pass
+    finally:
+        dialects.DB_TYPE = tipo_original
+        if modulo_original is None:
+            del sys.modules["pymssql"]
+        else:
+            sys.modules["pymssql"] = modulo_original
+    assert recebido["timeout"] == 90
+    assert recebido["appname"] == "sankhya-schema"
+    assert recebido["fechada"]
+
+
+def test_query_timeout_padrao_e_sem_limite():
+    # 0 é o comportamento anterior à variável: nada muda para quem não a define.
+    if "SANKHYA_DB_QUERY_TIMEOUT" not in os.environ:
+        assert dialects.DB_CONFIG["query_timeout"] == 0
+
+
+class _ContextoFalso:
+    def __init__(self):
+        self.progressos = []
+
+    async def report_progress(self, progress, total=None, message=None):
+        self.progressos.append(progress)
+
+
+@contextmanager
+def _fetch_rows_falso(funcao):
+    original = server.fetch_rows
+    server.fetch_rows = funcao
+    try:
+        yield
+    finally:
+        server.fetch_rows = original
+
+
+def test_run_query_envia_heartbeat_enquanto_a_consulta_roda():
+    def _consulta_lenta(sql, limit):
+        time.sleep(0.3)
+        return [{"a": 1}], False
+
+    ctx = _ContextoFalso()
+    intervalo_original = server.INTERVALO_HEARTBEAT_S
+    server.INTERVALO_HEARTBEAT_S = 0.05
+    try:
+        with _fetch_rows_falso(_consulta_lenta):
+            resposta = asyncio.run(server.run_query("SELECT 1 FROM DUAL", ctx=ctx))
+    finally:
+        server.INTERVALO_HEARTBEAT_S = intervalo_original
+    assert "| a |" in resposta
+    assert len(ctx.progressos) >= 2, ctx.progressos
+    # A spec MCP exige progresso crescente a cada notificação.
+    assert ctx.progressos == sorted(set(ctx.progressos)), ctx.progressos
+
+
+def test_run_query_rapida_nao_envia_heartbeat():
+    ctx = _ContextoFalso()
+    with _fetch_rows_falso(lambda sql, limit: ([{"a": 1}], False)):
+        asyncio.run(server.run_query("SELECT 1 FROM DUAL", ctx=ctx))
+    assert ctx.progressos == []
+
+
+def test_run_query_avisa_quando_passa_do_query_timeout():
+    def _estoura(sql, limit):
+        time.sleep(1.05)
+        raise Exception("DPI-1067: call timeout of 1000 ms exceeded with ORA-3156")
+
+    with _query_timeout(1), _fetch_rows_falso(_estoura):
+        resposta = asyncio.run(server.run_query("SELECT 1 FROM DUAL"))
+    assert "passou do limite de 1s" in resposta
+    assert "SANKHYA_DB_QUERY_TIMEOUT" in resposta
+    assert "DPI-1067" in resposta
+
+
+def test_run_query_erro_comum_mantem_mensagem_anterior():
+    def _falha(sql, limit):
+        raise Exception("ORA-00942: table or view does not exist")
+
+    with _query_timeout(60), _fetch_rows_falso(_falha):
+        resposta = asyncio.run(server.run_query("SELECT 1 FROM DUAL"))
+    assert resposta.startswith("❌ Erro ao executar query:")
+    assert "ORA-00942" in resposta
 
 
 def test_pool_oracle_criado_uma_vez_sob_chamadas_simultaneas():
@@ -1209,6 +1360,14 @@ def _servir_para_contrato(cenario):
         yield _FakeConn(_FakeCursor(0))
 
     server.connect = dialects.connect = _connect_falso
+    if cenario == "lento":
+        server.INTERVALO_HEARTBEAT_S = 0.1
+
+        def _consulta_lenta(sql, limit):
+            time.sleep(0.5)
+            return [{"a": 1}], False
+
+        server.fetch_rows = _consulta_lenta
     # check_updates consultaria o remote: resposta variaria com a rede.
     server.latest_version = lambda use_cache=True: None
     server.mcp.run()
@@ -1237,7 +1396,7 @@ class _ClienteStdio:
     def notificar(self, metodo):
         self._enviar({"jsonrpc": "2.0", "method": metodo})
 
-    def pedir(self, metodo, params=None):
+    def pedir(self, metodo, params=None, notificacoes=None):
         self._proximo_id += 1
         self._enviar({"jsonrpc": "2.0", "id": self._proximo_id, "method": metodo,
                       "params": params or {}})
@@ -1248,6 +1407,8 @@ class _ClienteStdio:
                 raise AssertionError(f"servidor não respondeu a {metodo}") from None
             if resposta.get("id") == self._proximo_id:
                 return resposta
+            if notificacoes is not None and "id" not in resposta:
+                notificacoes.append(resposta)
 
     def fechar(self):
         self._proc.stdin.close()
@@ -1313,6 +1474,43 @@ def test_contrato_mcp_nao_muda_sem_revisao():
     assert atual == esperado, (
         "o contrato MCP mudou. Revise com ATUALIZAR_CONTRATO=1 e `git diff contrato_mcp.json`."
     )
+
+
+def _chamar_run_query_lento(meta):
+    cliente = _ClienteStdio("lento")
+    notificacoes = []
+    try:
+        cliente.pedir("initialize", {
+            "protocolVersion": _PROTOCOLO_CLIENTE, "capabilities": {},
+            "clientInfo": {"name": "heartbeat", "version": "0"},
+        })
+        cliente.notificar("notifications/initialized")
+        params = {"name": "run_query", "arguments": {"sql": "SELECT 1 FROM DUAL"}}
+        if meta:
+            params["_meta"] = meta
+        resposta = cliente.pedir("tools/call", params, notificacoes)
+    finally:
+        cliente.fechar()
+    progresso = [n["params"] for n in notificacoes if n.get("method") == "notifications/progress"]
+    return resposta, progresso
+
+
+def test_heartbeat_chega_ao_cliente_pelo_protocolo():
+    # É o que o Claude Code vê: com progressToken, notificações de progresso
+    # chegam antes da resposta e zeram o idle timeout dele.
+    resposta, progresso = _chamar_run_query_lento({"progressToken": "t1"})
+    assert "| a |" in resposta["result"]["content"][0]["text"]
+    assert len(progresso) >= 2, progresso
+    assert all(p["progressToken"] == "t1" for p in progresso)
+    valores = [p["progress"] for p in progresso]
+    assert valores == sorted(set(valores)), valores
+
+
+def test_heartbeat_nao_envia_nada_sem_progress_token():
+    # Cliente que não pede progresso não recebe notificação que não entende.
+    resposta, progresso = _chamar_run_query_lento(None)
+    assert "| a |" in resposta["result"]["content"][0]["text"]
+    assert progresso == []
 
 
 if __name__ == "__main__" and _FLAG_SERVIDOR in sys.argv:
